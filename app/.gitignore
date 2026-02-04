@@ -1,0 +1,11 @@
+.venv/
+.env
+*.log
+logs/
+uvicorn.log
+.vscode/
+.idea/
+*.iml
+.DS_Store
+
+__pycache__/
