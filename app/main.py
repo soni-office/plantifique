@@ -1,27 +1,38 @@
-from app.api import auth_session
 from fastapi import FastAPI
-from app.api.auth_tiktokshop import router as tiktok_auth_router
 from fastapi.middleware.cors import CORSMiddleware
 
-app=FastAPI()
+from app.api import auth_session
+from app.api import sample_request
+from app.api.auth_tiktokshop import router as tiktok_auth_router
+from app.db.database import Base, engine
+from app.db import models  # noqa: F401
+
+app = FastAPI()
 
 origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
-@app.get("/")
+
+@app.on_event('startup')
+def startup() -> None:
+    Base.metadata.create_all(bind=engine)
+
+
+@app.get('/')
 def health_check():
-    return {"message": "Service is healthy"}
+    return {'message': 'Service is healthy'}
 
 
 app.include_router(tiktok_auth_router)
 app.include_router(auth_session.router)
+app.include_router(sample_request.router)
