@@ -1,137 +1,100 @@
-# Plantifique Backend
+# Plantifique Backend (JWT + PostgreSQL)
 
-FastAPI backend for TikTok Shop OAuth integration.
+FastAPI backend for TikTok Shop OAuth where:
+- TikTok tokens are stored in PostgreSQL
+- frontend receives an app JWT after code exchange
+- frontend calls protected APIs with `Authorization: Bearer <jwt>`
 
-## Stack
+## Implemented Auth Flow
 
-- Python 3.10+
-- FastAPI
-- Uvicorn
-- requests
-- python-dotenv
+1. Frontend sends browser to `GET /auth/tiktokshop/login`
+2. Backend creates and stores OAuth `state` in PostgreSQL and redirects to TikTok auth URL
+3. TikTok redirects to backend callback: `GET /auth/tiktokshop/callback?code=...&state=...`
+4. Backend validates state, then redirects to frontend callback route with `code` + `state`
+5. Frontend callback page calls `POST /auth/tiktokshop/exchange` with `code/state`
+6. Backend exchanges code with TikTok, stores `access_token`/`refresh_token` in PostgreSQL, creates app JWT
+7. Backend returns `{ access_token, user }`
+8. Frontend stores JWT and uses it for `/auth/me` and protected APIs
 
-## Project Structure
+## API Endpoints
 
-```text
-app/
-  api/
-    auth_tiktokshop.py
-    auth_session.py
-  services/
-    tiktokshop_oauth.py
-  utils/
-    api_sign.py
-  main.py
-  .env
-  requirements.txt
-```
+- `GET /` health
+- `GET /auth/tiktokshop/login`
+- `GET /auth/tiktokshop/callback`
+- `POST /auth/tiktokshop/exchange`
+- `GET /auth/me` (JWT required)
+- `POST /auth/logout` (client-side logout marker endpoint)
 
-## Local Setup
+## Backend Files Added/Updated
 
-1. Create and activate virtual environment:
-   - macOS/Linux:
-     ```bash
-     cd app
-     python3 -m venv .venv
-     source .venv/bin/activate
-     ```
+- `app/core/config.py`
+- `app/db/database.py`
+- `app/db/models.py`
+- `app/schemas/auth.py`
+- `app/utils/security.py`
+- `app/services/tiktokshop_oauth.py`
+- `app/api/auth_tiktokshop.py`
+- `app/api/auth_session.py`
+- `app/main.py`
+- `app/requirements.txt`
 
-2. Install dependencies:
-   ```bash
-   pip install fastapi uvicorn requests python-dotenv
+## PostgreSQL Setup
+
+1. Install PostgreSQL and create DB:
+   ```sql
+   CREATE DATABASE plantifique;
    ```
+2. Ensure user/password in `DATABASE_URL` has access.
 
-3. Configure environment variables in `app/.env`.
-
-4. Run server:
-   ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-5. Open docs:
-   - Swagger UI: `http://localhost:8000/docs`
-   - ReDoc: `http://localhost:8000/redoc`
-
-## Environment Variables
-
-Current expected variables:
+## Environment Variables (`app/.env`)
 
 ```env
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/plantifique
 APP_KEY=your_tiktok_app_key
 APP_SECRET=your_tiktok_app_secret
 REDIRECT_URI=http://localhost:8000/auth/tiktokshop/callback
 AUTH_URL=https://auth.tiktok-shops.com/oauth/authorize
 TOKEN_URL=https://auth.tiktok-shops.com/api/v2/token/get
-FRONTEND_URL=http://localhost:5173/dashboard
+FRONTEND_URL=http://localhost:5173
+FRONTEND_OAUTH_CALLBACK_PATH=/auth/tiktokshop/callback
+JWT_SECRET_KEY=replace_with_long_random_secret
+JWT_ALGORITHM=HS256
+JWT_EXP_MINUTES=60
 ```
 
-Notes:
-- `REDIRECT_URI` must exactly match both:
-  - TikTok developer console redirect URI
-  - backend callback route in `auth_tiktokshop.py`
-- In your current code, callback route is `/auth/tiktokshop/callback`.
+Important:
+- `REDIRECT_URI` must exactly match TikTok developer console redirect URI.
+- For local dev, keep frontend callback route as `/auth/tiktokshop/callback`.
 
-## API Endpoints
+## Install and Run
 
-### Health
+From project root (`Plantifique`):
 
-- `GET /`
-- Response:
-  ```json
-  { "message": "Service is healthy" }
-  ```
+1. Create venv and activate:
+   ```bash
+   cd app
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Start API:
+   ```bash
+   cd ..
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+4. Open docs:
+   - `http://localhost:8000/docs`
 
-### OAuth Login
+## CORS
 
-- `GET /auth/tiktokshop/login`
-- Behavior: redirects seller to TikTok authorization page (`302`).
-
-### OAuth Callback
-
-- `GET /auth/tiktokshop/callback?code=...&state=...`
-- Behavior:
-  - exchanges auth code for access/refresh token
-  - redirects to frontend dashboard (`FRONTEND_URL`)
-
-### Session User
-
-- `GET /auth/me`
-- Current response is a demo user payload.
-
-## OAuth Flow
-
-1. Frontend navigates to `GET /auth/tiktokshop/login`.
-2. Backend redirects to TikTok OAuth authorize URL.
-3. User authorizes in TikTok.
-4. TikTok redirects to backend callback (`REDIRECT_URI`).
-5. Backend exchanges code for token and redirects to frontend dashboard.
-
-## CORS Configuration
-
-`main.py` currently allows:
-
+`app/main.py` already allows:
 - `http://localhost:5173`
 - `http://127.0.0.1:5173`
 
-and `allow_credentials=True`, so cookie/session auth can work with the frontend.
+## Notes
 
-## Common Issues
-
-1. Redirect loop to frontend login:
-   - ensure backend callback is hit successfully
-   - ensure frontend auth check endpoint (`/auth/me`) returns authenticated user/session
-
-2. `302` from TikTok authorize URL:
-   - normal OAuth redirect behavior
-
-3. Callback mismatch:
-   - if `.env` has `REDIRECT_URI=/auth/tiktok/callback` but router uses `/auth/tiktokshop/callback`, OAuth will fail
-   - make them identical
-
-## Next Backend Hardening Steps
-
-- Validate `state` parameter against a stored value (CSRF protection)
-- Add robust error handling around token exchange
-- Store access/refresh tokens securely in DB/Redis
-- Replace demo `/auth/me` with real session/JWT user lookup
-- Add structured logging instead of `print`
+- This implementation stores TikTok tokens in DB and app JWT on frontend (localStorage).
+- For production hardening, add token encryption at rest, refresh flow, JWT revocation/blacklist, and Alembic migrations.
