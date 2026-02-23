@@ -1,0 +1,68 @@
+from fastapi import APIRouter, Query, Depends
+from sqlalchemy.orm import Session
+from app.utils.shop_ciphers import shop_cipher
+
+from app.db.database import get_db
+from app.services.sample_request import sample_request
+from app.services.tiktokshop_oauth import get_valid_access_token
+
+router = APIRouter(prefix="/tiktok/sample_request", tags=["Sample Requests"])
+
+@router.get("/search")
+def search_products(
+    page_size: int = Query(20),
+    db: Session = Depends(get_db)
+):
+    res=shop_cipher(db)
+    cipher = res["data"]["shops"][0]["cipher"]
+    access_token = get_valid_access_token(db)
+
+    # return sample_request(access_token, shop_cipher, page_size)
+    return {
+  "code": 0,
+  "data": {
+    "next_page_token": "aDU2dHIzMlFhME5CUzJKUDhDdVJhTDM1WmJkeFVTVW9LTkRaSnNaZCtuWjJXVU5CSDhlaA==",
+    "total_count": 100,
+    "sample_applications": [
+      {
+        "id": "123456",
+        "commission_rate": "0.1",
+        "status": "PENDING",
+        "order_id": "123456",
+        "available_quantity": 50,
+        "approve_expiration_time": 1728674995,
+        "shipment_expiration_time": 1728674995,
+        "tracking_number": "123456",
+        "fulfillment_status": "ONGOING",
+        "is_approvable": True,
+        "disapprovable_reasons": [
+          "Product out of stock"
+        ],
+        "partner_name": "ABC",
+        "creator": {
+          "creator_open_id": "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg",
+          "username": "test.name",
+          "nickname": "Test Name",
+          "follower_count": 200,
+          "avatar_url": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068xxxxx",
+          "gmv": {
+            "amount": "500",
+            "currency": "USD"
+          },
+          "content_count": 4,
+          "fulfillment_percentage": "60.50",
+          "ec_video_view": 1200
+        },
+        "product": {
+          "id": "123456",
+          "title": "A women dress",
+          "sku_id": "123456",
+          "sku_image_url": "https://p16-oec-va.ibyteimg.com/tos-malivaxxxxx",
+          "sku_name": "Soft Cover"
+        }
+      }
+    ]
+  },
+  "message": "Success",
+  "request_id": "202203070749000101890810281E8C70B7"
+}
