@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth_session
 from app.api import sample_request
+from app.api import product
 from app.api.auth_tiktokshop import router as tiktok_auth_router
 from app.db.database import Base, engine
 from app.db import models  # noqa: F401
@@ -36,3 +37,4 @@ def health_check():
 app.include_router(tiktok_auth_router)
 app.include_router(auth_session.router)
 app.include_router(sample_request.router)
+app.include_router(product.router)
