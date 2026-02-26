@@ -1,18 +1,20 @@
 import requests
 from app.core.config import settings
 import time 
-from app.services.tiktokshop_oauth import get_valid_access_token
+from app.services.tiktok.client import TikTokClient
 from app.utils.api_sign import generate_sign
 from urllib.parse import urlencode
-from app.db.database import get_db
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
+from app.services.tiktok.token_service import TokenService
 
 
 
-def shop_cipher(db: Session):
+def shop_cipher(db: Session,user_id:int):
+    print("<<<<<<<",db)
     url=f"{settings.base_url}/authorization/202309/shops"
-    access_token=get_valid_access_token(db)
+    token_service = TokenService(db)
+    access_token=token_service.get_valid_access_token(user_id)
     headers={
         "content-type": "application/json",
         "x-tts-access-token": access_token

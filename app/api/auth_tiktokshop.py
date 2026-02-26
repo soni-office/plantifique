@@ -1,91 +1,104 @@
-from datetime import datetime
-from urllib.parse import urlencode
-import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import secrets
+import logging
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.database import get_db
-from app.db.models import OAuthState, TikTokToken, User
-from app.schemas.auth import OAuthExchangeRequest, OAuthExchangeResponse, UserResponse
-from app.services.tiktokshop_oauth import exchange_code_for_token, get_auth_url
-from app.utils.security import create_access_token
+from app.repository.oauth_state_repository import OAuthStateRepository
+from app.repository.user_repository import UserRepository
+from app.repository.tiktok_token_repository import TikTokTokenRepository
+from app.schemas.auth import OAuthExchangeRequest
+from app.services.tiktok.oauth_service import TikTokOAuthService
+from app.core.security import create_access_token
 
-router = APIRouter(prefix='/auth/tiktokshop', tags=['TikTok Shop OAuth'])
+router = APIRouter(prefix="/auth/tiktokshop", tags=["TikTok Shop OAuth"])
+
+logger = logging.getLogger(__name__)
 
 
-@router.get('/login')
-def login(db: Session = Depends(get_db)):
+@router.get("/callback")
+async def callback(
+    code: str = Query(...),
+    state: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    state_repo = OAuthStateRepository(db)
+    db_state = state_repo.get_by_state(state)
+
+    if not db_state:
+        raise HTTPException(status_code=400, detail="Invalid state")
+
+    frontend_callback = (
+        f"{settings.frontend_url.rstrip('/')}/"
+        f"{settings.frontend_oauth_callback_path.lstrip('/')}"
+    )
+    query = urlencode({"code": code, "state": state})
+
+    return RedirectResponse(url=f"{frontend_callback}?{query}")
+
+
+@router.get("/login")
+async def login(db: Session = Depends(get_db)):
     state = secrets.token_urlsafe(32)
-    db.add(OAuthState(state=state))
+
+    state_repo = OAuthStateRepository(db)
+    state_repo.create(state)
     db.commit()
-    return RedirectResponse(url=get_auth_url(state), status_code=status.HTTP_302_FOUND)
+
+    auth_url = TikTokOAuthService.get_auth_url(state)
+
+    return RedirectResponse(url=auth_url)
 
 
-@router.get('/callback')
-def callback(code: str = Query(...), state: str = Query(...), db: Session = Depends(get_db)):
-    db_state = db.query(OAuthState).filter(OAuthState.state == state).first()
+@router.post("/exchange")
+async def exchange(payload: OAuthExchangeRequest, db: Session = Depends(get_db)):
+    code = payload.code
+    state = payload.state
+
+    state_repo = OAuthStateRepository(db)
+    db_state = state_repo.get_by_state(state)
+
     if not db_state:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid oauth state')
+        raise HTTPException(status_code=400, detail="Invalid state")
 
-    callback_url = (
-        f"{settings.frontend_url}{settings.frontend_oauth_callback_path}?"
-        + urlencode({'code': code, 'state': state})
-    )
-    return RedirectResponse(url=callback_url, status_code=status.HTTP_302_FOUND)
-
-
-@router.post('/exchange', response_model=OAuthExchangeResponse)
-def exchange(payload: OAuthExchangeRequest, db: Session = Depends(get_db)):
-    db_state = db.query(OAuthState).filter(OAuthState.state == payload.state).first()
-    if not db_state:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid oauth state')
-
-    db.delete(db_state)
+    state_repo.delete(db_state)
     db.commit()
-    print("inside exchange")
-    print("payload -----",payload)
-    print("payload code -----",payload.code)
-    token_data = exchange_code_for_token(payload.code)
-    print("token ------",token_data)
-    open_id = token_data.get('open_id') or token_data.get('seller_id')
-    if not open_id:
-        open_id = f"tiktok_{secrets.token_hex(8)}"
 
-    user = db.query(User).filter(User.tiktok_open_id == open_id).first()
+    token_data = TikTokOAuthService.exchange_code_for_token(code)
+
+    open_id = token_data.get("open_id") or token_data.get("seller_id")
+
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_tiktok_open_id(open_id)
+
     if not user:
-        user = User(
-            tiktok_open_id=open_id,
-            username=token_data.get('seller_name'),
-        )
-        print("NNNNNNN",user)
-        db.add(user)
-        
-        db.flush()
+        user = user_repo.create(open_id=open_id)
+        db.commit()
 
-    token_row = db.query(TikTokToken).filter(TikTokToken.user_id == user.id).first()
+    token_repo = TikTokTokenRepository(db)
+    token_row = token_repo.get_by_user_id(user.id)
+
     if not token_row:
-        token_row = TikTokToken(user_id=user.id, access_token=token_data['access_token'])
-        db.add(token_row)
+        token_row = token_repo.create(user.id)
 
-    token_row.access_token = token_data.get('access_token')
-    token_row.refresh_token = token_data.get('refresh_token')
-    token_row.scope = token_data.get('scope')
-    token_row.access_token_expire_in = token_data.get('access_token_expire_in')
-    token_row.refresh_token_expire_in = token_data.get('refresh_token_expire_in')
-    token_row.updated_at = datetime.utcnow()
+    token_row.access_token = token_data["access_token"]
+    token_row.refresh_token = token_data["refresh_token"]
+    token_row.access_token_expire_in = token_data["access_token_expire_in"]
 
     db.commit()
 
-    app_token = create_access_token(subject=str(user.id))
-    return OAuthExchangeResponse(
-        access_token=app_token,
-        user=UserResponse(
-            id=str(user.id),
-            email=user.email,
-            username=user.username,
-            tiktokShopId=user.tiktok_open_id,
-        ),
-    )
+    app_token = create_access_token(str(user.id))
+
+    return {
+        "access_token": app_token,
+        "user": {
+            "id": str(user.id),
+            "username": user.username,
+            "tiktokShopId": user.tiktok_open_id,
+        },
+    }

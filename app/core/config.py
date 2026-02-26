@@ -2,7 +2,6 @@ import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 
@@ -15,7 +14,6 @@ class Settings:
     jwt_secret_key: str = os.getenv('JWT_SECRET_KEY', 'change_me_in_env')
     jwt_algorithm: str = os.getenv('JWT_ALGORITHM', 'HS256')
     jwt_exp_minutes: int = int(os.getenv('JWT_EXP_MINUTES', '60'))
-
     app_key: str = os.getenv('APP_KEY', '')
     app_secret: str = os.getenv('APP_SECRET', '')
     redirect_uri: str = os.getenv('REDIRECT_URI', 'http://localhost:8000/auth/tiktokshop/callback')
@@ -25,5 +23,8 @@ class Settings:
     frontend_url: str = os.getenv('FRONTEND_URL', 'http://localhost:5173')
     frontend_oauth_callback_path: str = os.getenv('FRONTEND_OAUTH_CALLBACK_PATH', '/auth/tiktokshop/callback')
     base_url = "https://open-api.tiktokglobalshop.com"
+    mock_tiktok: bool = True
+    minmax_api_key : str = os.getenv('minmax_api_key', '')
+    minmax_base_url: str = os.getenv('MINIMAX_BASE_URL', 'https://api.minimax.chat/v1')
 
 settings = Settings()

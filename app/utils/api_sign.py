@@ -2,8 +2,7 @@ import time
 import hmac
 import hashlib
 import json
-import requests
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlparse
 
 
 def generate_sign(request_option, app_secret):
@@ -34,7 +33,8 @@ def generate_sign(request_option, app_secret):
     body = request_option.get("body", {})
 
     if content_type != "multipart/form-data" and body:
-        body_str = json.dumps(body, separators=(",", ":"))
+        # body_str = json.dumps(body, separators=(",", ":"))
+        body_str = json.dumps(body, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
         sign_string += body_str
 
     # Step 5: Wrap with app_secret
