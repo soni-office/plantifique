@@ -13,4 +13,5 @@ __pycache__/
 
 # Google Cloud SDK
 google-cloud-cli-*.tar.gz
-google-cloud-sdk/plantifique.db
+google-cloud-sdk/
+plantifique.db
