@@ -1,9 +1,10 @@
+from typing import Optional
 from pydantic import BaseModel
 
 
 class OAuthExchangeRequest(BaseModel):
     code: str
-    state: str
+    state: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -14,6 +15,6 @@ class UserResponse(BaseModel):
 
 
 class OAuthExchangeResponse(BaseModel):
-    access_token: str
+    jwt_token: str
     token_type: str = 'Bearer'
     user: UserResponse
