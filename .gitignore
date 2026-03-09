@@ -9,3 +9,9 @@ uvicorn.log
 .DS_Store
 venv/
 __pycache__/
+*.pyc
+
+# Google Cloud SDK
+google-cloud-cli-*.tar.gz
+google-cloud-sdk/
+plantifique.db

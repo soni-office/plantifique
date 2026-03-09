@@ -24,7 +24,7 @@ def get_mock_sample_requests():
           "username": "rosesoma",
           "nickname": "rose soma",
           "follower_count": 98981,
-          "avatar_url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/e5cbd887980aa9b508f0ef092d862ccc~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=44ae1be3&x-expires=1772179200&x-signature=1QsAFFAgbtjNzjk9WpKwsoVYubA%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Rose+Soma&background=c084fc&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "291526.39",
             "currency": "USD"
@@ -71,7 +71,7 @@ def get_mock_sample_requests():
           "username": "influencedqueens",
           "nickname": "Alle Brean",
           "follower_count": 487692,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/5f1e830ff32f098d4104bd633ecd0800~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=7ed84ef7&x-expires=1772179200&x-signature=cXB3za7edHx6otUKnKVFuISnmvg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Alle+Brean&background=f472b6&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "588731.82",
             "currency": "USD"
@@ -118,7 +118,7 @@ def get_mock_sample_requests():
           "username": "lexirosenstein",
           "nickname": "lex",
           "follower_count": 129926,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/ce76d9dda90d368dce31ddf922187fb5~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=a0838000&x-expires=1772179200&x-signature=KwFU5prJ5aCFW4%2F3yRgTdQn2jio%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Lex+Rosenstein&background=34d399&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "391124.96",
             "currency": "USD"
@@ -129,7 +129,7 @@ def get_mock_sample_requests():
         },
         "product": {
           "id": "PROD_T3_003",
-          "title": "Tier1",
+          "title": "Natural Jade Roller",
           "sku_id": "SKU_T3_003",
           "sku_image_url": "mock_product_image",
           "sku_name": "Natural Jade Tool"
@@ -167,7 +167,7 @@ def get_mock_sample_requests():
           "username": "loreidysguzman",
           "nickname": "LOREIDYS 👑",
           "follower_count": 8648,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/a804a4697e7441083590b28363326bde~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=b9b4bc1a&x-expires=1772179200&x-signature=%2FBtY2ssWu1BTZrQfYzNAFnxcqhM%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Loreidys+Guzman&background=fb923c&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "0",
             "currency": "USD"
@@ -214,7 +214,7 @@ def get_mock_sample_requests():
           "username": "una_flor_cubana",
           "nickname": "Una Flor Cubana 🇨🇺",
           "follower_count": 560929,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/f146c4ab8cabe8a92bf8f9c552c85c75~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=2269443c&x-expires=1772179200&x-signature=QSXMUWx3AOWhb%2FVTveQg52g0QlM%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Una+Flor&background=38bdf8&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "998823.2",
             "currency": "USD"
@@ -261,7 +261,7 @@ def get_mock_sample_requests():
           "username": "allure_fashion",
           "nickname": "Alle",
           "follower_count": 265276,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/e1db9fd3bb7a047a7ac83799b899fbc2~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=2128fb77&x-expires=1772179200&x-signature=4%2BvZIL1247c0FLVj8vbWTWLnlRg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=a1d2006b&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Alle+Fashion&background=a78bfa&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "503353.27",
             "currency": "USD"
@@ -308,7 +308,7 @@ def get_mock_sample_requests():
           "username": "naturefit_cole",
           "nickname": "naturefit_cole",
           "follower_count": 114127,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/2c3ef25d13bddef99aec0e468a29f670~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=596fad19&x-expires=1772179200&x-signature=8BxMs2BsfI9N83svVssvYenh%2Bj0%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Nature+Cole&background=4ade80&color=fff&size=128&rounded=true&bold=true",
           "gmv": {
             "amount": "570807.01",
             "currency": "USD"
@@ -319,7 +319,7 @@ def get_mock_sample_requests():
         },
         "product": {
           "id": "PROD_T2_001",
-          "title": "Tier2",
+          "title": "Brightening Exfoliating Pads",
           "sku_id": "SKU_T2_001",
           "sku_image_url": "mock_product_image",
           "sku_name": "Brightening Pads"

@@ -1,13 +1,11 @@
-
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 import logging
 
-from app.db.database import get_db
 from app.api.auth_session import get_current_user
 from app.services.tiktok.token_service import TokenService
 from app.services.tiktok.sample_service import TikTokSampleService
 from app.utils.shop_ciphers import shop_cipher
+
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 
 logger = logging.getLogger(__name__)
@@ -16,18 +14,13 @@ logger = logging.getLogger(__name__)
 @router.get("/search")
 async def search_sample_requests(
     page_size: int = Query(20),
-    db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    print("Searching sample requests for user_id=", user.id )
-    token_service = TokenService(db)
-    access_token = token_service.get_valid_access_token(user.id)
-    print("Got access token for user_id=", user.id, " token=", access_token)
-    res = shop_cipher(db,user.id) 
-    print("sdfsdfgfdg", res)
-    cipher = res["data"]["shops"][0]["cipher"] # Or fetch properly from DB
-    print("Using shop_cipher=", cipher, " for user_id=", user.id)
-    logger.info("Searching sample requests for user=%s", user.id)
+    token_service = TokenService()
+    access_token = token_service.get_valid_access_token(user["id"])
+    res = shop_cipher(user["id"])
+    cipher = res["data"]["shops"][0]["cipher"]
+    logger.info("Searching sample requests for user=%s", user["id"])
 
     return TikTokSampleService.search(
         access_token=access_token,
