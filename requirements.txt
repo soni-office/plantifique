@@ -6,3 +6,5 @@ SQLAlchemy==2.0.38
 psycopg[binary]==3.2.13
 python-jose[cryptography]==3.3.0
 google-cloud-firestore==2.23.0
+langgraph==1.0.10
+langchain-google-vertexai==3.2.2

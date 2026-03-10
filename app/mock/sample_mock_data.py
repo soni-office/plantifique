@@ -20,18 +20,19 @@ def get_mock_sample_requests():
         "disapprovable_reasons": [],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "rosesoma_open_id",
+          "creator_open_id": "ibiargAAAABAzta8e3KWwWOe8MO_OaUpcjBvr2rVQsAg_UMq5J_SOw",
           "username": "rosesoma",
           "nickname": "rose soma",
           "follower_count": 98981,
-          "avatar_url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/e5cbd887980aa9b508f0ef092d862ccc~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=44ae1be3&x-expires=1772179200&x-signature=1QsAFFAgbtjNzjk9WpKwsoVYubA%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=rose+soma&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "291526.39",
             "currency": "USD"
           },
           "content_count": 215,
           "fulfillment_percentage": "82.50",
-          "ec_video_view": 1996
+          "ec_video_view": 1996,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732277490804625616",
@@ -67,18 +68,19 @@ def get_mock_sample_requests():
         "disapprovable_reasons": [],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "influencedqueens_open_id",
+          "creator_open_id": "mjja_QAAAABAzta8e3KWwWOe8MO_OaUpBZiw_kzJukhUdlD3JTVHXA",
           "username": "influencedqueens",
           "nickname": "Alle Brean",
           "follower_count": 487692,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/5f1e830ff32f098d4104bd633ecd0800~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=7ed84ef7&x-expires=1772179200&x-signature=cXB3za7edHx6otUKnKVFuISnmvg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Alle+Brean&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "588731.82",
             "currency": "USD"
           },
           "content_count": 480,
           "fulfillment_percentage": "91.20",
-          "ec_video_view": 7714
+          "ec_video_view": 7714,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732277532617314512",
@@ -114,18 +116,19 @@ def get_mock_sample_requests():
         "disapprovable_reasons": [],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "lexirosenstein_open_id",
+          "creator_open_id": "-4ZobAAAAABAzta8e3KWwWOe8MO_OaUpju18WX_HSqo9RQFGG1bBTQ",
           "username": "lexirosenstein",
           "nickname": "lex",
           "follower_count": 129926,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/ce76d9dda90d368dce31ddf922187fb5~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=a0838000&x-expires=1772179200&x-signature=KwFU5prJ5aCFW4%2F3yRgTdQn2jio%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=lex+rosenstein&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "391124.96",
             "currency": "USD"
           },
           "content_count": 320,
           "fulfillment_percentage": "88.10",
-          "ec_video_view": 3313
+          "ec_video_view": 3313,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732277528473997520",
@@ -163,18 +166,19 @@ def get_mock_sample_requests():
         ],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "loreidysguzman_open_id",
+          "creator_open_id": "MGAcmgAAAABAzta8e3KWwWOe8MO_OaUpt6aTVCPBqaJM11xofO7EyA",
           "username": "loreidysguzman",
           "nickname": "LOREIDYS 👑",
           "follower_count": 8648,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/a804a4697e7441083590b28363326bde~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=b9b4bc1a&x-expires=1772179200&x-signature=%2FBtY2ssWu1BTZrQfYzNAFnxcqhM%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Loreidys+G.&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "0",
             "currency": "USD"
           },
           "content_count": 34,
           "fulfillment_percentage": "60.00",
-          "ec_video_view": 131
+          "ec_video_view": 131,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732277523258380496",
@@ -210,18 +214,19 @@ def get_mock_sample_requests():
         "disapprovable_reasons": [],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "una_flor_cubana_open_id",
+          "creator_open_id": "f6B1_wAAAABAzta8e3KWwWOe8MO_OaUpnKmEhBHoG5R0ZLtw8427kA",
           "username": "una_flor_cubana",
           "nickname": "Una Flor Cubana 🇨🇺",
           "follower_count": 560929,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/f146c4ab8cabe8a92bf8f9c552c85c75~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=2269443c&x-expires=1772179200&x-signature=QSXMUWx3AOWhb%2FVTveQg52g0QlM%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Una+Flor&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "998823.2",
             "currency": "USD"
           },
           "content_count": 650,
           "fulfillment_percentage": "93.00",
-          "ec_video_view": 5645
+          "ec_video_view": 5645,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732277516319232208",
@@ -257,18 +262,19 @@ def get_mock_sample_requests():
         "disapprovable_reasons": [],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "allure_fashion_open_id",
+          "creator_open_id": "jDmTPAAAAABAzta8e3KWwWOe8MO_OaUpk1szgFiWZwnzTA3cux4T_w",
           "username": "allure_fashion",
           "nickname": "Alle",
           "follower_count": 265276,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/e1db9fd3bb7a047a7ac83799b899fbc2~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=2128fb77&x-expires=1772179200&x-signature=4%2BvZIL1247c0FLVj8vbWTWLnlRg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=a1d2006b&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Allure+Fashion&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "503353.27",
             "currency": "USD"
           },
           "content_count": 410,
           "fulfillment_percentage": "90.00",
-          "ec_video_view": 9611
+          "ec_video_view": 9611,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732277504894013648",
@@ -304,18 +310,19 @@ def get_mock_sample_requests():
         "disapprovable_reasons": [],
         "partner_name": "Glow Beauty US",
         "creator": {
-          "creator_open_id": "naturefit_cole_open_id",
+          "creator_open_id": "AQ3NhwAAAABAzta8e3KWwWOe8MO_OaUp4vK4ZfEiAdXcC6rRo8Zo8A",
           "username": "naturefit_cole",
           "nickname": "naturefit_cole",
           "follower_count": 114127,
-          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/2c3ef25d13bddef99aec0e468a29f670~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=596fad19&x-expires=1772179200&x-signature=8BxMs2BsfI9N83svVssvYenh%2Bj0%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
+          "avatar_url": "https://ui-avatars.com/api/?name=Naturefit+Cole&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
             "amount": "570807.01",
             "currency": "USD"
           },
           "content_count": 340,
           "fulfillment_percentage": "87.40",
-          "ec_video_view": 8069
+          "ec_video_view": 8069,
+          "selection_region": "US"
         },
         "product": {
           "id": "1732268131939881168",
