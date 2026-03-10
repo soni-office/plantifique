@@ -13,14 +13,10 @@ security = HTTPBearer()
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
-    """
-    Stateless authentication: decode the JWT and return user info directly
-    from the token payload — no database call required.
-    """
+
     jwt_token = credentials.credentials
     payload = decode_jwt_token(jwt_token)
 
-    # Return a simple dict built entirely from the token — zero DB queries
     return {
         "id": payload["user_id"],
         "tiktok_open_id": payload["tiktok_id"],
