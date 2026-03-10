@@ -26,5 +26,6 @@ class Settings:
     mock_tiktok: bool = True
     minmax_api_key : str = os.getenv('minmax_api_key', '')
     minmax_base_url: str = os.getenv('MINIMAX_BASE_URL', 'https://api.minimax.chat/v1')
+    tiktok_token_encryption_key: str = os.getenv('TIKTOK_TOKEN_ENCRYPTION_KEY', '')
 
 settings = Settings()

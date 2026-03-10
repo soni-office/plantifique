@@ -18,44 +18,7 @@ router = APIRouter(prefix="/auth/tiktokshop", tags=["TikTok Shop OAuth"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/callback")
-async def callback(
-    code: str = Query(...),
-    state: str = Query(None),
-):
-    """
-    Dumb pass-through: TikTok always redirects here after login.
-    We simply forward the code (and state) to the frontend.
-    State validation happens once in /exchange — no DB call needed here.
-    """
-    frontend_callback = (
-        f"{settings.frontend_url.rstrip('/')}/"
-        f"{settings.frontend_oauth_callback_path.lstrip('/')}"
-    )
-    params: dict = {"code": code}
-    if state:
-        params["state"] = state
-
-    return RedirectResponse(url=f"{frontend_callback}?{urlencode(params)}")
-
-
-@router.get("/login")
-async def login():
-    state = secrets.token_urlsafe(32)
-
-    state_repo = OAuthStateRepository()
-    state_repo.create(state)
-
-    auth_url = TikTokOAuthService.get_auth_url(state)
-
-    return RedirectResponse(url=auth_url)
-
-
-@router.post("/exchange")
-async def exchange(payload: OAuthExchangeRequest):
-    code = payload.code
-    state = payload.state
-
+def _complete_oauth(code: str, state: str | None) -> dict:
     state_repo = OAuthStateRepository()
 
     if state:
@@ -97,9 +60,48 @@ async def exchange(payload: OAuthExchangeRequest):
 
     return {
         "jwt_token": app_token,
+        # Keep legacy field for compatibility with older frontend code.
+        "access_token": app_token,
+        "token_type": "Bearer",
         "user": {
             "id": user["id"],
             "username": user.get("username"),
             "tiktokShopId": user.get("tiktok_open_id"),
         },
     }
+
+
+@router.get("/callback")
+async def callback(
+    code: str = Query(...),
+    state: str = Query(None),
+):
+    """
+    Pass TikTok callback params back to frontend.
+    Frontend will call /exchange to complete token creation/session bootstrap.
+    """
+    frontend_callback = (
+        f"{settings.frontend_url.rstrip('/')}/"
+        f"{settings.frontend_oauth_callback_path.lstrip('/')}"
+    )
+    params: dict = {"code": code}
+    if state:
+        params["state"] = state
+    return RedirectResponse(url=f"{frontend_callback}?{urlencode(params)}")
+
+
+@router.get("/login")
+async def login():
+    state = secrets.token_urlsafe(32)
+
+    state_repo = OAuthStateRepository()
+    state_repo.create(state)
+
+    auth_url = TikTokOAuthService.get_auth_url(state)
+
+    return RedirectResponse(url=auth_url)
+
+
+@router.post("/exchange")
+async def exchange(payload: OAuthExchangeRequest):
+    return _complete_oauth(code=payload.code, state=payload.state)
