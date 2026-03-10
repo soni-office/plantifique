@@ -24,7 +24,7 @@ def get_mock_sample_requests():
           "username": "rosesoma",
           "nickname": "rose soma",
           "follower_count": 98981,
-          "avatar_url": "https://ui-avatars.com/api/?name=Rose+Soma&background=c084fc&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/e5cbd887980aa9b508f0ef092d862ccc~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=44ae1be3&x-expires=1772179200&x-signature=1QsAFFAgbtjNzjk9WpKwsoVYubA%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
           "gmv": {
             "amount": "291526.39",
             "currency": "USD"
@@ -34,11 +34,11 @@ def get_mock_sample_requests():
           "ec_video_view": 1996
         },
         "product": {
-          "id": "PROD_T3_001",
+          "id": "1732277490804625616",
           "title": "Peach Foot Mask",
-          "sku_id": "SKU_T3_001",
+          "sku_id": "1732277493827932368",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Peach Exfoliating Foot Mask"
+          "sku_name": "Peach Foot Mask"
         }
       }
     ]
@@ -71,7 +71,7 @@ def get_mock_sample_requests():
           "username": "influencedqueens",
           "nickname": "Alle Brean",
           "follower_count": 487692,
-          "avatar_url": "https://ui-avatars.com/api/?name=Alle+Brean&background=f472b6&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/5f1e830ff32f098d4104bd633ecd0800~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=7ed84ef7&x-expires=1772179200&x-signature=cXB3za7edHx6otUKnKVFuISnmvg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
           "gmv": {
             "amount": "588731.82",
             "currency": "USD"
@@ -81,11 +81,11 @@ def get_mock_sample_requests():
           "ec_video_view": 7714
         },
         "product": {
-          "id": "PROD_T3_002",
-          "title": "Marine Clay Mask",
-          "sku_id": "SKU_T3_002",
+          "id": "1732277532617314512",
+          "title": "Vitamin C Face Massage Serum",
+          "sku_id": "1732277534925885648",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Detox Clay Mask"
+          "sku_name": "Vitamin C Face Massage Serum"
         }
       }
     ]
@@ -118,7 +118,7 @@ def get_mock_sample_requests():
           "username": "lexirosenstein",
           "nickname": "lex",
           "follower_count": 129926,
-          "avatar_url": "https://ui-avatars.com/api/?name=Lex+Rosenstein&background=34d399&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/ce76d9dda90d368dce31ddf922187fb5~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=a0838000&x-expires=1772179200&x-signature=KwFU5prJ5aCFW4%2F3yRgTdQn2jio%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
           "gmv": {
             "amount": "391124.96",
             "currency": "USD"
@@ -128,11 +128,11 @@ def get_mock_sample_requests():
           "ec_video_view": 3313
         },
         "product": {
-          "id": "PROD_T3_003",
-          "title": "Natural Jade Roller",
-          "sku_id": "SKU_T3_003",
+          "id": "1732277528473997520",
+          "title": "Hydrating Hand Mask",
+          "sku_id": "1732277528801153232",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Natural Jade Tool"
+          "sku_name": "Hydrating Hand Mask"
         }
       }
     ]
@@ -167,7 +167,7 @@ def get_mock_sample_requests():
           "username": "loreidysguzman",
           "nickname": "LOREIDYS 👑",
           "follower_count": 8648,
-          "avatar_url": "https://ui-avatars.com/api/?name=Loreidys+Guzman&background=fb923c&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/a804a4697e7441083590b28363326bde~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=b9b4bc1a&x-expires=1772179200&x-signature=%2FBtY2ssWu1BTZrQfYzNAFnxcqhM%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
           "gmv": {
             "amount": "0",
             "currency": "USD"
@@ -177,11 +177,11 @@ def get_mock_sample_requests():
           "ec_video_view": 131
         },
         "product": {
-          "id": "PROD_T4_001",
-          "title": "Mango Cleansing Balm",
-          "sku_id": "SKU_T4_001",
+          "id": "1732277523258380496",
+          "title": "Melt & Clean Cleansing Balm",
+          "sku_id": "1732277524232442064",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Deep Clean Balm"
+          "sku_name": "Melt & Clean Cleansing Balm"
         }
       }
     ]
@@ -214,7 +214,7 @@ def get_mock_sample_requests():
           "username": "una_flor_cubana",
           "nickname": "Una Flor Cubana 🇨🇺",
           "follower_count": 560929,
-          "avatar_url": "https://ui-avatars.com/api/?name=Una+Flor&background=38bdf8&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/f146c4ab8cabe8a92bf8f9c552c85c75~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=2269443c&x-expires=1772179200&x-signature=QSXMUWx3AOWhb%2FVTveQg52g0QlM%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
           "gmv": {
             "amount": "998823.2",
             "currency": "USD"
@@ -224,11 +224,11 @@ def get_mock_sample_requests():
           "ec_video_view": 5645
         },
         "product": {
-          "id": "PROD_T4_002",
+          "id": "1732277516319232208",
           "title": "Kojic Acid Bar Soap",
-          "sku_id": "SKU_T4_002",
+          "sku_id": "1732277520621408464",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Brightening Bar"
+          "sku_name": "Kojic Acid Bar Soap"
         }
       }
     ]
@@ -261,7 +261,7 @@ def get_mock_sample_requests():
           "username": "allure_fashion",
           "nickname": "Alle",
           "follower_count": 265276,
-          "avatar_url": "https://ui-avatars.com/api/?name=Alle+Fashion&background=a78bfa&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/e1db9fd3bb7a047a7ac83799b899fbc2~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=2128fb77&x-expires=1772179200&x-signature=4%2BvZIL1247c0FLVj8vbWTWLnlRg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=a1d2006b&idc=useast5",
           "gmv": {
             "amount": "503353.27",
             "currency": "USD"
@@ -271,11 +271,11 @@ def get_mock_sample_requests():
           "ec_video_view": 9611
         },
         "product": {
-          "id": "PROD_T1_001",
-          "title": "V-Line Sculpting Mask",
-          "sku_id": "SKU_T1_001",
+          "id": "1732277504894013648",
+          "title": "Turmeric Cleansing Pads",
+          "sku_id": "1732277509529637072",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Jaw Contour Mask"
+          "sku_name": "Turmeric Cleansing Pads"
         }
       }
     ]
@@ -308,7 +308,7 @@ def get_mock_sample_requests():
           "username": "naturefit_cole",
           "nickname": "naturefit_cole",
           "follower_count": 114127,
-          "avatar_url": "https://ui-avatars.com/api/?name=Nature+Cole&background=4ade80&color=fff&size=128&rounded=true&bold=true",
+          "avatar_url": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/2c3ef25d13bddef99aec0e468a29f670~tplv-tiktokx-cropcenter:720:720.webp?dr=9640&refresh_token=596fad19&x-expires=1772179200&x-signature=8BxMs2BsfI9N83svVssvYenh%2Bj0%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=39dffb78&idc=useast5",
           "gmv": {
             "amount": "570807.01",
             "currency": "USD"
@@ -318,11 +318,11 @@ def get_mock_sample_requests():
           "ec_video_view": 8069
         },
         "product": {
-          "id": "PROD_T2_001",
-          "title": "Brightening Exfoliating Pads",
-          "sku_id": "SKU_T2_001",
+          "id": "1732268131939881168",
+          "title": "Dummy Shoe Product",
+          "sku_id": "1732268131041841360",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Brightening Pads"
+          "sku_name": "Dummy Shoe Product"
         }
       }
     ]

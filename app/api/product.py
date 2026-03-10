@@ -29,7 +29,6 @@ async def search_products(
         page_size=page_size,
     )
 
-
 @router.get("/{product_id}")
 async def get_product(
     product_id: str,

@@ -27,5 +27,7 @@ class Settings:
     minmax_api_key : str = os.getenv('minmax_api_key', '')
     minmax_base_url: str = os.getenv('MINIMAX_BASE_URL', 'https://api.minimax.chat/v1')
     tiktok_token_encryption_key: str = os.getenv('TIKTOK_TOKEN_ENCRYPTION_KEY', '')
+    creator_search_path: str = os.getenv('CREATOR_SEARCH_PATH', '/affiliate_seller/202508/marketplace_creators/search')
+    product_search_path: str = os.getenv('PRODUCT_SEARCH_PATH', '/affiliate_seller/202508/marketplace_products/search')
 
 settings = Settings()

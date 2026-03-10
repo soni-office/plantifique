@@ -18,20 +18,54 @@ router = APIRouter(prefix="/auth/tiktokshop", tags=["TikTok Shop OAuth"])
 logger = logging.getLogger(__name__)
 
 
-def _complete_oauth(code: str, state: str | None) -> dict:
+@router.get("/callback")
+async def callback(
+    code: str = Query(...),
+    state: str = Query(...),
+):
     state_repo = OAuthStateRepository()
+    db_state = state_repo.get_by_state(state)
+
+    if not db_state:
+        raise HTTPException(status_code=400, detail="Invalid state")
+
+    frontend_callback = (
+        f"{settings.frontend_url.rstrip('/')}/"
+        f"{settings.frontend_oauth_callback_path.lstrip('/')}"
+    )
+    params: dict = {"code": code}
+    if state:
+        params["state"] = state
+    return RedirectResponse(url=f"{frontend_callback}?{urlencode(params)}")
+
+
+@router.get("/login")
+async def login():
+    state = secrets.token_urlsafe(32)
+
+    state_repo = OAuthStateRepository()
+    state_repo.create(state)
+
+    auth_url = TikTokOAuthService.get_auth_url(state)
+
+    return RedirectResponse(url=auth_url)
+
+
+@router.post("/exchange")
+async def exchange(payload: OAuthExchangeRequest):
+    code = payload.code
+    state = payload.state
 
     if state:
         # Validate state (CSRF protection) — only happens once here
+        state_repo = OAuthStateRepository()
         db_state = state_repo.get_by_state(state)
-        if not db_state:
-            raise HTTPException(status_code=400, detail="Invalid state")
-        state_repo.delete(state)
-    else:
-        logger.warning(
-            "OAuth exchange called without state parameter. "
-            "Skipping CSRF validation (acceptable in sandbox)."
-        )
+
+    if not db_state:
+        raise HTTPException(status_code=400, detail="Invalid state")
+
+    # the state is valid, we can delete it now — it can only be used once
+    state_repo.delete(db_state['state'])
 
     token_data = TikTokOAuthService.exchange_code_for_token(code)
 
@@ -57,7 +91,7 @@ def _complete_oauth(code: str, state: str | None) -> dict:
     })
 
     app_token = create_jwt_token(user["id"], open_id)
-
+    # breakpoint()
     return {
         "jwt_token": app_token,
         # Keep legacy field for compatibility with older frontend code.
@@ -69,39 +103,3 @@ def _complete_oauth(code: str, state: str | None) -> dict:
             "tiktokShopId": user.get("tiktok_open_id"),
         },
     }
-
-
-@router.get("/callback")
-async def callback(
-    code: str = Query(...),
-    state: str = Query(None),
-):
-    """
-    Pass TikTok callback params back to frontend.
-    Frontend will call /exchange to complete token creation/session bootstrap.
-    """
-    frontend_callback = (
-        f"{settings.frontend_url.rstrip('/')}/"
-        f"{settings.frontend_oauth_callback_path.lstrip('/')}"
-    )
-    params: dict = {"code": code}
-    if state:
-        params["state"] = state
-    return RedirectResponse(url=f"{frontend_callback}?{urlencode(params)}")
-
-
-@router.get("/login")
-async def login():
-    state = secrets.token_urlsafe(32)
-
-    state_repo = OAuthStateRepository()
-    state_repo.create(state)
-
-    auth_url = TikTokOAuthService.get_auth_url(state)
-
-    return RedirectResponse(url=auth_url)
-
-
-@router.post("/exchange")
-async def exchange(payload: OAuthExchangeRequest):
-    return _complete_oauth(code=payload.code, state=payload.state)

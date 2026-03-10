@@ -1,13 +1,14 @@
 from app.mock.sample_mock_data import get_mock_sample_requests
 
 TIER_MAP = {
-    "V-Line Sculpting Mask": "TIER_3",
+    "Vitamin C Face Massage Serum": "TIER_2",
     "Brightening Exfoliating Pads": "TIER_2",
     "Peach Foot Mask": "TIER_3",
-    "Marine Clay Mask": "TIER_3",
-    "Natural Jade Roller": "TIER_1",
-    "Mango Cleansing Balm": "TIER_4",
+    "Turmeric Cleansing Pads": "TIER_3",
+    "Dummy Shoe Product": "TIER_1",
+    "Melt & Clean Cleansing Balm": "TIER_4",
     "Kojic Acid Bar Soap": "TIER_4",
+    "Hydrating Hand Mask": "TIER_1",
 }
 
 

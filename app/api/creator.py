@@ -22,7 +22,7 @@ async def get_creators(
     res = shop_cipher(user["id"])
     cipher = res["data"]["shops"][0]["cipher"]
     logger.info("Searching creators for user=%s", user["id"])
-
+    
     return TikTokCreatorService.get_creator(
         access_token=access_token,
         shop_cipher=cipher,
