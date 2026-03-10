@@ -101,11 +101,7 @@ def generate_sign(request_option, app_secret):
 
 # if __name__ == "__main__":
 
-#     APP_KEY = "6j17thd2h3k6e"
-#     APP_SECRET = "15fec1a4aa7ddb15692ef2c07ae9bdb70169ed20"
-#     ACCESS_TOKEN = "TTP_sA_32wAAAABOYrV3ZxH42vLvRCv_132NDY2s8xz7ub4NeJmcTrl3eb_sdirMGJAiQdveywonEfT2yJwPjGfpGlRP78Vrqhi4n-5Ww-GaVJJvfs-DS3E6KHcu20twZb-DTa3Rz-doHjA"
-#     timestamp = int(time.time())
-
+#    
 #     # API endpoint
 #     product_id=1732268131939881168
 #     uri ="https://open-api.tiktokglobalshop.com/affiliate_seller/202406/marketplace_creators/search"
@@ -164,14 +160,14 @@ def generate_sign(request_option, app_secret):
 
 if __name__ == "__main__":
 
-    APP_KEY = "6j17thd2h3k6e"
-    APP_SECRET = "15fec1a4aa7ddb15692ef2c07ae9bdb70169ed20"
-    ACCESS_TOKEN = "TTP_FPjhKgAAAABOYrV3ZxH42vLvRCv_132NDY2s8xz7ub4NeJmcTrl3eZ9368BVt8tU8u4VBsGbE2IGp0MBz5nZ3-2ZNIB_Ft1gomAmxuFGrSrad2SfuyJX8Bd0M3730BV5QGdzJMVkoVw"
+    APP_KEY = "dummy"
+    APP_SECRET = "dummy"
+    ACCESS_TOKEN = "dummy"
     BASE_URL = "https://open-api.tiktokglobalshop.com"
 
     timestamp = int(time.time())
 
-    path = "/affiliate_seller/202406/marketplace_creators/search"
+    path = "/affiliate_seller/202508/marketplace_creators/search"
     url = BASE_URL + path
 
     cipher = "TTP_QaxVSgAAAACI9jDpQr8EtjBL2HxeuNuw"

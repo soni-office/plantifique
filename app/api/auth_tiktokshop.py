@@ -1,20 +1,17 @@
-
 import secrets
 import logging
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.database import get_db
 from app.repository.oauth_state_repository import OAuthStateRepository
 from app.repository.user_repository import UserRepository
 from app.repository.tiktok_token_repository import TikTokTokenRepository
 from app.schemas.auth import OAuthExchangeRequest
 from app.services.tiktok.oauth_service import TikTokOAuthService
-from app.core.security import create_access_token
+from app.core.security import create_jwt_token
 
 router = APIRouter(prefix="/auth/tiktokshop", tags=["TikTok Shop OAuth"])
 
@@ -25,9 +22,8 @@ logger = logging.getLogger(__name__)
 async def callback(
     code: str = Query(...),
     state: str = Query(...),
-    db: Session = Depends(get_db),
 ):
-    state_repo = OAuthStateRepository(db)
+    state_repo = OAuthStateRepository()
     db_state = state_repo.get_by_state(state)
 
     if not db_state:
@@ -37,18 +33,18 @@ async def callback(
         f"{settings.frontend_url.rstrip('/')}/"
         f"{settings.frontend_oauth_callback_path.lstrip('/')}"
     )
-    query = urlencode({"code": code, "state": state})
-
-    return RedirectResponse(url=f"{frontend_callback}?{query}")
+    params: dict = {"code": code}
+    if state:
+        params["state"] = state
+    return RedirectResponse(url=f"{frontend_callback}?{urlencode(params)}")
 
 
 @router.get("/login")
-async def login(db: Session = Depends(get_db)):
+async def login():
     state = secrets.token_urlsafe(32)
 
-    state_repo = OAuthStateRepository(db)
+    state_repo = OAuthStateRepository()
     state_repo.create(state)
-    db.commit()
 
     auth_url = TikTokOAuthService.get_auth_url(state)
 
@@ -56,49 +52,54 @@ async def login(db: Session = Depends(get_db)):
 
 
 @router.post("/exchange")
-async def exchange(payload: OAuthExchangeRequest, db: Session = Depends(get_db)):
+async def exchange(payload: OAuthExchangeRequest):
     code = payload.code
     state = payload.state
 
-    state_repo = OAuthStateRepository(db)
-    db_state = state_repo.get_by_state(state)
+    if state:
+        # Validate state (CSRF protection) — only happens once here
+        state_repo = OAuthStateRepository()
+        db_state = state_repo.get_by_state(state)
 
     if not db_state:
         raise HTTPException(status_code=400, detail="Invalid state")
 
-    state_repo.delete(db_state)
-    db.commit()
+    # the state is valid, we can delete it now — it can only be used once
+    state_repo.delete(db_state['state'])
 
     token_data = TikTokOAuthService.exchange_code_for_token(code)
 
     open_id = token_data.get("open_id") or token_data.get("seller_id")
 
-    user_repo = UserRepository(db)
+    user_repo = UserRepository()
     user = user_repo.get_by_tiktok_open_id(open_id)
 
     if not user:
         user = user_repo.create(open_id=open_id)
-        db.commit()
 
-    token_repo = TikTokTokenRepository(db)
-    token_row = token_repo.get_by_user_id(user.id)
+    token_repo = TikTokTokenRepository()
+    token_row = token_repo.get_by_user_id(user["id"])
 
     if not token_row:
-        token_row = token_repo.create(user.id)
+        token_row = token_repo.create(user["id"])
 
-    token_row.access_token = token_data["access_token"]
-    token_row.refresh_token = token_data["refresh_token"]
-    token_row.access_token_expire_in = token_data["access_token_expire_in"]
+    # Update token fields in Firestore
+    token_repo.update(token_row["id"], {
+        "access_token": token_data["access_token"],
+        "refresh_token": token_data["refresh_token"],
+        "access_token_expire_in": token_data["access_token_expire_in"],
+    })
 
-    db.commit()
-
-    app_token = create_access_token(str(user.id))
-
+    app_token = create_jwt_token(user["id"], open_id)
+    # breakpoint()
     return {
+        "jwt_token": app_token,
+        # Keep legacy field for compatibility with older frontend code.
         "access_token": app_token,
+        "token_type": "Bearer",
         "user": {
-            "id": str(user.id),
-            "username": user.username,
-            "tiktokShopId": user.tiktok_open_id,
+            "id": user["id"],
+            "username": user.get("username"),
+            "tiktokShopId": user.get("tiktok_open_id"),
         },
     }

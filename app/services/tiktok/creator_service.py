@@ -4,7 +4,8 @@ from app.services.tiktok.client import TikTokClient
 from app.core.config import settings
 
 
-SAMPLE_PATH = "/affiliate_seller/202406/marketplace_creators/search"
+# SAMPLE_PATH = "/affiliate_seller/2020508/marketplace_creators/search"
+SAMPLE_PATH = settings.creator_search_path
 
 
 class TikTokCreatorService:
@@ -17,6 +18,7 @@ class TikTokCreatorService:
             body["keyword"] = keyword
         print("inside service tiktok creator service")
         # breakpoint()
+
         return TikTokClient.post(
             path=SAMPLE_PATH,
             access_token=access_token,

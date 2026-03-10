@@ -6,8 +6,6 @@ from app.api import auth_session
 from app.api import agent
 from app.api import product
 from app.api.auth_tiktokshop import router as tiktok_auth_router
-from app.db.database import Base, engine
-from app.db import models  # noqa: F401
 
 app = FastAPI()
 
@@ -23,11 +21,6 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
-
-
-@app.on_event('startup')
-def startup() -> None:
-    Base.metadata.create_all(bind=engine)
 
 
 @app.get('/')

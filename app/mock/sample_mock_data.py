@@ -34,11 +34,11 @@ def get_mock_sample_requests():
           "ec_video_view": 1996
         },
         "product": {
-          "id": "PROD_T3_001",
+          "id": "1732277490804625616",
           "title": "Peach Foot Mask",
-          "sku_id": "SKU_T3_001",
+          "sku_id": "1732277493827932368",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Peach Exfoliating Foot Mask"
+          "sku_name": "Peach Foot Mask"
         }
       }
     ]
@@ -81,11 +81,11 @@ def get_mock_sample_requests():
           "ec_video_view": 7714
         },
         "product": {
-          "id": "PROD_T3_002",
-          "title": "Marine Clay Mask",
-          "sku_id": "SKU_T3_002",
+          "id": "1732277532617314512",
+          "title": "Vitamin C Face Massage Serum",
+          "sku_id": "1732277534925885648",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Detox Clay Mask"
+          "sku_name": "Vitamin C Face Massage Serum"
         }
       }
     ]
@@ -128,11 +128,11 @@ def get_mock_sample_requests():
           "ec_video_view": 3313
         },
         "product": {
-          "id": "PROD_T3_003",
-          "title": "Tier1",
-          "sku_id": "SKU_T3_003",
+          "id": "1732277528473997520",
+          "title": "Hydrating Hand Mask",
+          "sku_id": "1732277528801153232",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Natural Jade Tool"
+          "sku_name": "Hydrating Hand Mask"
         }
       }
     ]
@@ -177,11 +177,11 @@ def get_mock_sample_requests():
           "ec_video_view": 131
         },
         "product": {
-          "id": "PROD_T4_001",
-          "title": "Mango Cleansing Balm",
-          "sku_id": "SKU_T4_001",
+          "id": "1732277523258380496",
+          "title": "Melt & Clean Cleansing Balm",
+          "sku_id": "1732277524232442064",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Deep Clean Balm"
+          "sku_name": "Melt & Clean Cleansing Balm"
         }
       }
     ]
@@ -224,11 +224,11 @@ def get_mock_sample_requests():
           "ec_video_view": 5645
         },
         "product": {
-          "id": "PROD_T4_002",
+          "id": "1732277516319232208",
           "title": "Kojic Acid Bar Soap",
-          "sku_id": "SKU_T4_002",
+          "sku_id": "1732277520621408464",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Brightening Bar"
+          "sku_name": "Kojic Acid Bar Soap"
         }
       }
     ]
@@ -271,11 +271,11 @@ def get_mock_sample_requests():
           "ec_video_view": 9611
         },
         "product": {
-          "id": "PROD_T1_001",
-          "title": "V-Line Sculpting Mask",
-          "sku_id": "SKU_T1_001",
+          "id": "1732277504894013648",
+          "title": "Turmeric Cleansing Pads",
+          "sku_id": "1732277509529637072",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Jaw Contour Mask"
+          "sku_name": "Turmeric Cleansing Pads"
         }
       }
     ]
@@ -318,11 +318,11 @@ def get_mock_sample_requests():
           "ec_video_view": 8069
         },
         "product": {
-          "id": "PROD_T2_001",
-          "title": "Tier2",
-          "sku_id": "SKU_T2_001",
+          "id": "1732268131939881168",
+          "title": "Dummy Shoe Product",
+          "sku_id": "1732268131041841360",
           "sku_image_url": "mock_product_image",
-          "sku_name": "Brightening Pads"
+          "sku_name": "Dummy Shoe Product"
         }
       }
     ]
