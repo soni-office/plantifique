@@ -147,7 +147,7 @@ def llm_score_node(state: SREvaluationState) -> dict:
                 rich_product_dict = res_p.get("data", {})
             else:
                 print(f"[DEBUG] Failed to fetch rich product details for {product_id}")
-
+        
     llm = ChatVertexAI(
         model_name="gemini-2.0-flash",
         project="tiktok-ai-agent-488417",
@@ -208,15 +208,16 @@ def route_after_validation(state: SREvaluationState) -> str:
     if state.get("final_decision") == "ERROR":
         return "end"
 
-    filters_passed = state.get("filters_passed", False)
-    if not filters_passed:
-        # Failed standard thresholds -> Go straight to decision (bypassing LLM API call)
-        return "decision"
-        
-    # Passed standard thresholds!
+    filters_passed = state.get("filters_passed")
     tier = state.get("tier", "UNKNOWN")
+
+    # TIER_1/2/5/UNKNOWN: filters_passed is None (skipped) — route to internal review
     if tier in ("TIER_1", "TIER_2", "TIER_5", "UNKNOWN"):
         return "flag_internal"
+
+    # TIER_3/4: filters explicitly failed — skip LLM, go straight to decision
+    if filters_passed is False:
+        return "decision"
     
     # Needs LLM Compatibility evaluation!
     return "llm_score"

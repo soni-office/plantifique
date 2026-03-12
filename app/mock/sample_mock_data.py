@@ -21,17 +21,17 @@ def get_mock_sample_requests():
         "partner_name": "Glow Beauty US",
         "creator": {
           "creator_open_id": "ibiargAAAABAzta8e3KWwWOe8MO_OaUpcjBvr2rVQsAg_UMq5J_SOw",
-          "username": "rosesoma",
-          "nickname": "rose soma",
-          "follower_count": 98981,
-          "avatar_url": "https://ui-avatars.com/api/?name=rose+soma&background=ffffff&color=000000&bold=true&rounded=true",
+          "username": "rosesoma.shop",
+          "nickname": "user28973594383",
+          "follower_count": 5316,
+          "avatar_url": "https://ui-avatars.com/api/?name=Rose+soma.shop&background=ffffff&color=000000&bold=true&rounded=true",
           "gmv": {
-            "amount": "291526.39",
+            "amount": "0",
             "currency": "USD"
           },
-          "content_count": 215,
-          "fulfillment_percentage": "82.50",
-          "ec_video_view": 1996,
+          "content_count": 0,
+          "fulfillment_percentage": "0",
+          "ec_video_view": 0,
           "selection_region": "US"
         },
         "product": {
