@@ -68,6 +68,7 @@ CREATOR_EVALUATION_PROMPT = """
 You are an AI strategist for a premium TikTok Shop brand.
 The creator has passed basic threshold checks. Your mission is to perform a **DEEP COMPATIBILITY ANALYSIS**.
 
+{rag_context}
 You must compare the **Creator Profile Data** (audience demographics, categories, performance) with the **Product Data** (category, title, attributes) and decide if this is a winning partnership.
 
 NOTE:

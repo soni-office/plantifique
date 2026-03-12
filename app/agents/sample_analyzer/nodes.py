@@ -1,18 +1,23 @@
+import json
+import logging
 import os
+
 from pydantic import BaseModel, Field
 from langchain_google_vertexai import ChatVertexAI
 
 from app.agents.tools import (
-    fetch_sample_by_id, 
-    get_tier, 
-    TIER_3_THRESHOLDS, 
-    TIER_4_THRESHOLDS
+    fetch_sample_by_id,
+    get_tier,
+    TIER_3_THRESHOLDS,
+    TIER_4_THRESHOLDS,
 )
 from app.agents.sample_analyzer.state import SREvaluationState
 from app.agents.sample_analyzer.prompts import CREATOR_EVALUATION_PROMPT
 from app.services.tiktok.creator_service import TikTokCreatorService
 from app.services.tiktok.product_service import TikTokProductService
-import json
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class ScoreResult(BaseModel):
     """Pydantic model to enforce structured JSON output from Vertex AI."""
@@ -148,6 +153,26 @@ def llm_score_node(state: SREvaluationState) -> dict:
             else:
                 print(f"[DEBUG] Failed to fetch rich product details for {product_id}")
         
+    # --- RAG context retrieval (optional) ---
+    rag_context_section = ""
+    if settings.want_to_use_rag:
+        from app.rag.store import query_rag
+        product_title = state.get("product_title", "")
+        tier = state.get("tier", "")
+        rag_query = f"{product_title} {tier} creator evaluation criteria aesthetic standards approval policy"
+        raw_context = query_rag(rag_query, n_results=3)
+        if raw_context:
+            rag_context_section = (
+                "### BRAND OPERATIONAL GUIDELINES (Retrieved from Policy):\n"
+                f"{raw_context}\n"
+                "---\n\n"
+            )
+            logger.info("[RAG] Injected %d chars of policy context into prompt", len(raw_context))
+        else:
+            logger.info("[RAG] No context retrieved — proceeding without RAG")
+    else:
+        logger.debug("[RAG] Disabled (WANT_TO_USE_RAG=false)")
+
     llm = ChatVertexAI(
         model_name="gemini-2.0-flash",
         project="tiktok-ai-agent-488417",
@@ -157,10 +182,11 @@ def llm_score_node(state: SREvaluationState) -> dict:
     structured_llm = llm.with_structured_output(ScoreResult)
 
     prompt_str = CREATOR_EVALUATION_PROMPT.format(
+        rag_context=rag_context_section,
         product_title=state.get("product_title"),
         tier=state.get("tier"),
         product_json=json.dumps(rich_product_dict, indent=2),
-        creator_json=json.dumps(rich_creator_dict, indent=2)
+        creator_json=json.dumps(rich_creator_dict, indent=2),
     )
 
     result = structured_llm.invoke(prompt_str)
