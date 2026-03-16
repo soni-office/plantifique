@@ -1,0 +1,32 @@
+# If a file is in this list, it will NOT be uploaded to Google Cloud during deployment
+
+.gcloudignore
+.git/
+.gitignore
+
+# Secrets and Environment Variables
+.env
+.env.*
+secret*
+
+# Python / Virtual Environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE Configuration
+.vscode/
+.idea/
+
+# Large binaries and DBs
+*.db
+*.sqlite3
+*.tar.gz
+google-cloud-sdk/
+
+# Logs
+logs/
+*.log
