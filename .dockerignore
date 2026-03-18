@@ -8,10 +8,19 @@ __pycache__/
 env/
 venv/
 .env
-.venv/
+.env.dev
+.env.prod
 .env.example
+.venv/
 .git/
 .gitignore
 google-cloud-sdk/
 google-cloud-cli-darwin-arm.tar.gz
 *.db
+
+# ChromaDB — rebuilt at container startup from source doc
+app/rag/chroma_db/
+
+# Terraform — not needed in the container
+terraform/
+scripts/

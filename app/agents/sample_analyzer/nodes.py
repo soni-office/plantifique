@@ -13,6 +13,7 @@ from app.agents.tools import (
 )
 from app.agents.sample_analyzer.state import SREvaluationState
 from app.agents.sample_analyzer.prompts import CREATOR_EVALUATION_PROMPT
+from app.core.config import settings
 from app.services.tiktok.creator_service import TikTokCreatorService
 from app.services.tiktok.product_service import TikTokProductService
 from app.core.config import settings
@@ -174,7 +175,7 @@ def llm_score_node(state: SREvaluationState) -> dict:
         logger.debug("[RAG] Disabled (WANT_TO_USE_RAG=false)")
 
     llm = ChatVertexAI(
-        model_name="gemini-2.0-flash",
+        model_name=settings.vertex_model,
         project="tiktok-ai-agent-488417",
         location="us-central1",
         temperature=0,

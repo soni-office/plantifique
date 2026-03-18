@@ -10,14 +10,7 @@ from app.api.auth_tiktokshop import router as tiktok_auth_router
 
 app = FastAPI()
 
-origins = [
-    # Local development
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    # Production frontend (Firebase Hosting)
-    'https://tiktok-ai-agent-488417.web.app',
-    'https://tiktok-ai-agent-488417.firebaseapp.com',
-]
+origins = settings.allowed_origins
 
 app.add_middleware(
     CORSMiddleware,
