@@ -7,11 +7,21 @@ class OAuthExchangeRequest(BaseModel):
     state: Optional[str] = None
 
 
+class StandardEmailLoginRequest(BaseModel):
+    email: str
+
+
 class UserResponse(BaseModel):
     id: str
     email: str | None = None
     username: str | None = None
-    tiktokShopId: str
+    tiktokShopId: str | None = None  # Make optional as it's not set for email login
+
+
+class SessionResponse(BaseModel):
+    jwt_token: str
+    token_type: str = 'Bearer'
+    user: UserResponse
 
 
 class OAuthExchangeResponse(BaseModel):

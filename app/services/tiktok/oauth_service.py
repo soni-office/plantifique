@@ -20,6 +20,17 @@ class TikTokOAuthService:
 
     @staticmethod
     def exchange_code_for_token(code: str):
+        if settings.mock_tiktok:
+            logger.info("[Mock] Simulating TikTok token exchange for code=%s", code)
+            return {
+                "access_token": "mock_access_token_abc_123",
+                "refresh_token": "mock_refresh_token_xyz_789",
+                "access_token_expire_in": 3600,
+                "refresh_token_expire_in": 7200,
+                "open_id": "mock_tiktok_shop_id",
+                "seller_name": "Plantifique Mock Shop",
+            }
+
         params = {
             "app_key": settings.app_key,
             "app_secret": settings.app_secret,
