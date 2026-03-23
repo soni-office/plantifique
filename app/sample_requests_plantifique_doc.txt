@@ -1,0 +1,80 @@
+Plantifique TikTok Shop Sample Request Processing Policy
+
+---
+
+TIER SYSTEM — STRATEGIC CLASSIFICATION
+
+Tier 1: Retainers (Priority One)
+Definition: Creators currently under contract or on a long-term retainer.
+Action: Bot Bypass. These requests are flagged for the internal team to handle (white-glove service). Do NOT evaluate through standard criteria.
+
+Tier 2: Exception List
+Definition: Creators requiring manual review, typically high-value relationships managed via Discord/DMs.
+Action: Bot Bypass. Flagged for internal team review only. Do NOT score automatically.
+
+Tier 3: Q1 Strategic Focus Products
+Products: Peach Foot Mask, Turmeric Cleansing Pads, Marine Clay Mask, V-Line Mask, Jade Gua Sha
+Evaluation: Apply performance-based vetting using US Sample Approval Criteria (Follower/GMV thresholds + Aesthetic Fit).
+Scoring: Bot evaluates and scores creator-product compatibility.
+
+Tier 4: Legacy / Q4 Products (Open Plan)
+Products: Mango Cleansing Balm, Kojic Acid Bar Soap
+Context: No longer proactively scouted. Still active and receiving organic requests.
+Evaluation: Reject if creator does not meet baseline criteria — preserve inventory.
+Exception: Approve if creator has high historical ROI specifically with our brand.
+
+Tier 5: All Other Products
+Action: Flag for internal review only. No strict performance metrics applied. White-glove service by internal team.
+
+---
+
+AESTHETIC STANDARDS — PROFILE & CONTENT AUDIT
+
+These standards apply to all Tier 3 and Tier 4 creator evaluations.
+
+Technical Content Audit:
+- Posting Cadence: Creator must post at least 3–5 times per week.
+- Recency: Must have posted within the last 7 days.
+- Content Type: Feed should feature "Get Ready With Me" (GRWM), ASMR, educational, or engaging beauty/lifestyle content.
+
+Visual & Aesthetic Standards (Clean Beauty):
+- Lighting: Bright, natural, or soft-box lighting. Reject grainy or dark "bedroom" videos.
+- Environment: Clean backgrounds — organized vanities, spa-like bathrooms.
+- Production: High-resolution (4K preferred) close-ups of skin and product texture. Minimal heavy blur filters.
+
+A mismatch in aesthetic quality (e.g., poor lighting, cluttered backgrounds) is a negative signal for Tier 3/4 approvals.
+
+---
+
+HISTORICAL COLLABORATION AUDIT
+
+Every creator who is NOT on the Retainer List must be evaluated against their collaboration history. This prevents "sample hustling" and rewards loyalty.
+
+Case 1: Past Sample + Generated GMV
+Action: High Priority Approval. Past sales generation is a proven asset indicator.
+Note: Approve even if slightly below current GMV threshold for secondary products.
+
+Case 2: Past Sample + NO GMV (no sales, no content posted)
+Action: Automatic Rejection. Do not send a second sample to a creator who failed to perform.
+
+Case 3: No Past Sample
+Action: Standard Vetting. Evaluate strictly on US Sample Approval Criteria (Followers, 30-day GMV, Aesthetic Fit).
+
+---
+
+APPROVAL DECISION LOGIC
+
+Approve: Creator is a Past Success (generated GMV), OR a Prospect meeting Focus Product criteria for Tier 3/4.
+Reject: Creator is a Past Failure (received sample, no GMV) OR a Prospect failing to meet Tier 3/4 threshold criteria.
+Flag Internal: Creator is a Retainer (Tier 1), on the Exception List (Tier 2), or requesting a non-Focus product (Tier 5).
+
+---
+
+US SAMPLE APPROVAL CRITERIA (Tier 3 / Tier 4)
+
+Primary filters evaluated before AI scoring:
+1. Minimum GMV: Must meet product-specific GMV floor (indicates proven sales capability).
+2. Minimum Follower Count: Baseline reach requirement per product.
+3. Minimum Post Rate: Minimum fulfillment/posting percentage to ensure content will actually be created.
+
+Creators passing all three filters proceed to full AI compatibility scoring (aesthetic fit, audience alignment, category match).

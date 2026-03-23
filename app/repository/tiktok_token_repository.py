@@ -10,9 +10,9 @@ class TikTokTokenRepository:
         self.crypto = TokenCrypto()
 
     def get_by_user_id(self, user_id: str) -> dict | None:
-        """Find a token record by user_id."""
-        docs = self.col.where("user_id", "==", user_id).limit(1).stream()
-        for doc in docs:
+        """Find a token record directly using user_id."""
+        doc = self.col.document(user_id).get()
+        if doc.exists:
             data = doc.to_dict()
             data["access_token"] = self.crypto.decrypt(data.get("access_token"))
             data["refresh_token"] = self.crypto.decrypt(data.get("refresh_token"))
@@ -21,7 +21,7 @@ class TikTokTokenRepository:
         return None
 
     def create(self, user_id: str) -> dict:
-        """Create a blank token record for a user."""
+        """Create a blank token record for a user, using user_id as the document ID."""
         now = datetime.now(timezone.utc)
         data = {
             "user_id": user_id,
@@ -32,8 +32,8 @@ class TikTokTokenRepository:
             "refresh_token_expire_in": None,
             "updated_at": now,
         }
-        _, doc_ref = self.col.add(data)
-        data["id"] = doc_ref.id
+        self.col.document(user_id).set(data)
+        data["id"] = user_id
         return data
 
     def update(self, doc_id: str, fields: dict) -> None:

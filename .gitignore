@@ -1,5 +1,7 @@
 .venv/
 .env
+.env.dev
+.env.prod
 *.log
 logs/
 uvicorn.log
@@ -15,3 +17,24 @@ __pycache__/
 google-cloud-cli-*.tar.gz
 google-cloud-sdk/
 plantifique.db
+
+# ChromaDB — generated vector store (rebuilt at runtime from source doc)
+app/rag/chroma_db/
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfstate.d/
+**/.terraformrc
+**/crash.log
+**/crash.*.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+**/terraform.tfvars
+**/terraform.tfvars.json
+**/*.auto.tfvars
+**/*.auto.tfvars.json

@@ -1,0 +1,26 @@
+Dockerfile
+README.md
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.env.dev
+.env.prod
+.env.example
+.venv/
+.git/
+.gitignore
+google-cloud-sdk/
+google-cloud-cli-darwin-arm.tar.gz
+*.db
+
+# ChromaDB — rebuilt at container startup from source doc
+app/rag/chroma_db/
+
+# Terraform — not needed in the container
+terraform/
+scripts/

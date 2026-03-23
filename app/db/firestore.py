@@ -1,5 +1,6 @@
 from google.cloud import firestore
+from app.core.config import settings
 
-# Firestore client — uses Application Default Credentials (gcloud auth application-default login)
-# No JSON key file needed locally since we ran `gcloud auth application-default login`
-db = firestore.Client(project="tiktok-ai-agent-488417", database="plantifique-pop-dev")
+# Uses Application Default Credentials locally (gcloud auth application-default login).
+# In Cloud Run, uses the service account attached to the revision automatically.
+db = firestore.Client(project=settings.gcp_project, database=settings.firestore_db)

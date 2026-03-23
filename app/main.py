@@ -1,3 +1,4 @@
+from app.core.config import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import sample_request
@@ -9,10 +10,7 @@ from app.api.auth_tiktokshop import router as tiktok_auth_router
 
 app = FastAPI()
 
-origins = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
+origins = settings.allowed_origins
 
 app.add_middleware(
     CORSMiddleware,
