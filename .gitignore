@@ -38,3 +38,5 @@ app/rag/chroma_db/
 **/terraform.tfvars.json
 **/*.auto.tfvars
 **/*.auto.tfvars.json
+
+local_files/
