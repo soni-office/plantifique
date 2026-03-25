@@ -6,8 +6,14 @@ import logging
 from typing import Optional
 
 import requests
+import json
+from langchain_google_vertexai import ChatVertexAI
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
+
+class PlaylistSelection(BaseModel):
+    selected_mix_id: str | None = Field(description="The ID of the playlist most relevant to the product, or None if none are relevant.")
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +83,36 @@ class TikApiService:
             logger.error("[TikAPI] get_top_videos failed for sec_uid=%s: %s", sec_uid, e)
             return []
 
+    @classmethod
+    def get_user_playlists(cls, sec_uid: str) -> list[dict]:
+        """Fetch the user's custom TikTok playlists (Mixes)."""
+        if not settings.tikapi_key: return []
+        try:
+            url = f"{_BASE_URL}/public/playlists"
+            resp = requests.get(url, headers=_headers(), params={"secUid": sec_uid}, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Most structures return a cursorList or mixList
+                return data.get("cursorList") or data.get("mixList") or data.get("mixInfo") or []
+        except requests.RequestException as e:
+            logger.warning("[TikAPI] get_user_playlists failed: %s", e)
+        return []
+
+    @classmethod
+    def get_playlist_videos(cls, mix_id: str, limit: int = 10) -> list[dict]:
+        """Fetch videos from a specific playlist (Mix)."""
+        if not settings.tikapi_key: return []
+        try:
+            url = f"{_BASE_URL}/public/playlist/items"
+            resp = requests.get(url, headers=_headers(), params={"id": mix_id, "count": limit}, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_videos = data.get("itemList") or []
+                return [TikApiService._sanitise_video(v, "") for v in raw_videos[:limit]]
+        except requests.RequestException as e:
+            logger.warning("[TikAPI] get_playlist_videos failed for mix_id=%s: %s", mix_id, e)
+        return []
+
     @staticmethod
     def get_video_comments(video_id: str, limit: int = _COMMENT_LIMIT) -> list[str]:
         """
@@ -135,10 +171,11 @@ class TikApiService:
         }
 
     @classmethod
-    def enrich_creator(cls, username: str) -> list[dict]:
+    def enrich_creator(cls, username: str, product_title: str | None = None) -> list[dict]:
         """
-        Helper: given a @username, return their top videos
-        each enriched with top audience comments.
+        Helper: given a @username, return their top videos, dynamically scoped to relevant 
+        playlists if a matching niche is found, enriched with top audience comments.
+
 
         Comment fetching is done only for the first 5 videos to limit
         API calls (5 videos × 1 API call = 5 total comment requests).
@@ -153,8 +190,38 @@ class TikApiService:
             logger.warning("[TikAPI] Could not extract secUid for username=%s", username)
             return []
 
-        videos = cls.get_top_videos(sec_uid=sec_uid, username=username)
-        logger.info("[TikAPI] Fetched %d videos for username=%s", len(videos), username)
+        videos = []
+        if product_title:
+            playlists = cls.get_user_playlists(sec_uid)
+            if playlists:
+                # Use Gemini to intelligently select the most relevant playlist (cross-lingual/conceptual)
+                llm = ChatVertexAI(model_name=settings.vertex_model, temperature=0).with_structured_output(PlaylistSelection)
+                
+                comp_prompt = f"""You are determining which of a TikTok creator's playlists is most relevant to the product we want them to review.
+Product: {product_title}
+
+Creator's Playlists:
+{json.dumps([{"mix_name": p.get("mixName"), "mix_id": p.get("mixId")} for p in playlists if p.get("mixId")], indent=2)}
+
+Select the mix_id of the playlist that conceptually matches this product category (even if in another language like Spanish). If none are a good fit (e.g. they are all about gaming or food), return None.
+"""
+                try:
+                    selection = llm.invoke(comp_prompt)
+                    mix_id = selection.selected_mix_id
+                    
+                    if mix_id:
+                        selected_name = next((p.get("mixName") for p in playlists if p.get("mixId") == mix_id), "Unknown")
+                        print(f"[TikAPI] AI intelligently selected playlist '{selected_name}' for product '{product_title}'. Fetching tailored videos...")
+                        videos = cls.get_playlist_videos(mix_id, limit=10)
+                except Exception as e:
+                    logger.warning("[TikAPI] LLM Playlist routing failed: %s", e)
+
+        # Fallback to standard chronology if no relevant playlist found or API fails
+        if not videos:
+            print(f"[TikAPI] No relevant playlist found, falling back to chronological posts for {username}...")
+            videos = cls.get_top_videos(sec_uid=sec_uid, username=username)
+
+        print(f"[TikAPI] Enrichment pipeline finalized {len(videos)} videos for username={username}")
 
         # Enrich the first 5 videos with top comments (audience vibe signal)
         for i, video in enumerate(videos[:5]):
