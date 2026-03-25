@@ -187,9 +187,12 @@ def fetch_aesthetic_data_node(state: SREvaluationState) -> dict:
         return {"recent_videos": []}
 
     logger.info("[TikAPI] Fetching top videos for creator username=%s", username)
-    videos = TikApiService.enrich_creator(username)
-    logger.info("[TikAPI] Got %d videos for username=%s", len(videos), username)
-    return {"recent_videos": videos}
+    product_title = state.get("product_title", "")
+    recent_videos = []
+    if username:
+        recent_videos = TikApiService.enrich_creator(username, product_title=product_title)
+    logger.info("[TikAPI] Got %d videos for username=%s", len(recent_videos), username)
+    return {"recent_videos": recent_videos}
 
 
 def flag_internal_node(state: SREvaluationState) -> dict:
