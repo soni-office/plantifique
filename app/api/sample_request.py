@@ -54,14 +54,10 @@ async def evaluate_sample_request(
     analysis_repo = SampleAnalysisRepository()
 
     try:
-        if settings.mock_tiktok:
-            access_token = "mock_access_token"
-            cipher = "mock_cipher"
-        else:
-            token_service = TokenService()
-            access_token = token_service.get_valid_access_token(user["org_id"])
-            res = shop_cipher(user["org_id"])
-            cipher = res["data"]["shops"][0]["cipher"]
+        token_service = TokenService()
+        access_token = token_service.get_valid_access_token(user["org_id"])
+        res = shop_cipher(user["org_id"])
+        cipher = res["data"]["shops"][0]["cipher"]
 
         result = run_sr_agent(
             sample_request_id=sample_id,

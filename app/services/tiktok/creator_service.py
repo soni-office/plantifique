@@ -1,11 +1,9 @@
-
-
 from app.services.tiktok.client import TikTokClient
 from app.core.config import settings
 from app.agents.tools import TIER_MAP, TIER_3_THRESHOLDS, TIER_4_THRESHOLDS
 
 
-# SAMPLE_PATH = "/affiliate_seller/2020508/marketplace_creators/search"
+
 SAMPLE_PATH = settings.creator_search_path
 
 
@@ -17,8 +15,7 @@ class TikTokCreatorService:
         body = {}
         if keyword:
             body["keyword"] = keyword
-        print("inside service tiktok creator service")
-        # breakpoint()
+
 
         res = TikTokClient.post(
             path=SAMPLE_PATH,
@@ -41,8 +38,6 @@ class TikTokCreatorService:
     def get_creator_detail(access_token: str, shop_cipher: str, creator_open_id: str):
         path = settings.creator_detail_path.format(creator_user_id=creator_open_id)
         
-        # Add category_version explicitly to make sure it includes full info like Category Rules does if needed,
-        # but the test script worked without it for creator detail. Let's just pass empty qs.
         res = TikTokClient.get(
             path=path,
             access_token=access_token,
