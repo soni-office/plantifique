@@ -116,6 +116,9 @@ class Settings:
     # Redis credentials
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     CACHE_DEFAULT_TTL: int = int(os.getenv("CACHE_DEFAULT_TTL", 300))
+    
+    # TikAPI (creator video & profile enrichment)
+    tikapi_key: str = os.getenv('TIKAPI_KEY', '')
 
     # -------------------------------------------------------------------------
     # Computed properties

@@ -7,18 +7,83 @@ from langchain_google_vertexai import ChatVertexAI
 
 from app.agents.tools import fetch_sample_from_db, resolve_tier
 from app.agents.sample_analyzer.state import SREvaluationState
-from app.agents.sample_analyzer.prompts import CREATOR_EVALUATION_PROMPT
+from app.agents.sample_analyzer.prompts import (
+    CREATOR_EVALUATION_PROMPT,
+    AESTHETIC_EVALUATION_PROMPT
+)
 from app.core.config import settings
 from app.clients.tiktok.creator_client import TikTokCreatorClient
 from app.clients.tiktok.product_client import TikTokProductClient
 from app.cache import cache, keys, ttl
+from app.services.tikapi.client import TikApiService
 
 logger = logging.getLogger(__name__)
 
-class ScoreResult(BaseModel):
-    """Pydantic model to enforce structured JSON output from Vertex AI."""
-    score: int = Field(description="Score out of 100 representing creator-product fit")
-    reasoning: str = Field(description="Brief explanation of the score")
+
+class CommerceScoreResult(BaseModel):
+    """Structured output schema for Vertex AI Phase 2."""
+    score: int = Field(description="Score out of 100 representing commerce/audience fit")
+    reasoning: str = Field(description="2-3 sentences explaining the compatibility decision")
+
+class AestheticScoreResult(BaseModel):
+    """Structured output schema for Vertex AI Phase 3."""
+    aesthetic_score: int = Field(description="Score out of 100 representing aesthetic visual fit")
+    reasoning: str = Field(description="2-3 sentences explaining the aesthetic compatibility")
+    top_3_video_urls: list[str] = Field(
+        default_factory=list,
+        description="Top 3 video URLs (from recent_videos web_url) that best prove this creator belongs in the product niche. Empty list if no videos were available."
+    )
+
+
+def _sanitize_product(raw: dict) -> dict:
+    """Strip noisy fields from TikTok product API response before sending to LLM."""
+    if not raw:
+        return {}
+    return {
+        "id": raw.get("id"),
+        "title": raw.get("title"),
+        "description": raw.get("description"),
+        "status": raw.get("status"),
+        "listing_quality_tier": raw.get("listing_quality_tier"),
+        "price_usd": (
+            raw.get("skus", [{}])[0].get("price", {}).get("sale_price")
+            if raw.get("skus") else None
+        ),
+        "inventory_qty": (
+            raw.get("skus", [{}])[0].get("inventory", [{}])[0].get("quantity")
+            if raw.get("skus") else None
+        ),
+        "category": [c.get("local_name") for c in raw.get("category_chains", [])],
+        "key_attributes": {
+            a.get("name"): [v.get("name") for v in a.get("values", [])]
+            for a in raw.get("product_attributes", [])
+            if a.get("name") not in {
+                "CA Prop 65: Repro. Chems", "CA Prop 65: Carcinogens",
+                "Flammable Liquid", "Dangerous Goods Or Hazardous Materials",
+            }
+        },
+    }
+
+
+def _sanitize_video(v_list: list) -> list:
+    """Strip binary URLs from video metadata for the LLM prompt."""
+    if not v_list:
+        return []
+    clean = []
+    for v in v_list:
+        clean.append({
+            "caption": v.get("caption"),
+            "likes": v.get("likes"),
+            "comments_count": v.get("comments_count"),
+            "plays": v.get("plays"),
+            "language": v.get("language"),
+            "quality": v.get("quality"),
+            "is_hd": v.get("is_hd"),
+            "top_comments": v.get("top_comments"),
+            "web_url": v.get("web_url"),
+        })
+    return clean
+
 
 def fetch_data_node(state: SREvaluationState) -> dict:
     """
@@ -200,6 +265,28 @@ def validation_node(state: SREvaluationState) -> dict:
         "validation_reason": f"TIER_5 — {reason}",
     }
 
+def fetch_aesthetic_data_node(state: SREvaluationState) -> dict:
+    """
+    Stage 1.5: Fetch the creator's top 10 public TikTok videos via TikAPI.
+
+    """
+    creator = state.get("creator_data") or {}
+    username = (
+        creator.get("username")
+        or creator.get("handle")
+        or creator.get("creator_name")
+    )
+
+    if not username:
+        logger.warning("[TikAPI] No username found in creator_data — skipping aesthetic enrichment.")
+        return {"recent_videos": []}
+
+    logger.info("[TikAPI] Fetching top videos for creator username=%s", username)
+    videos = TikApiService.enrich_creator(username)
+    logger.info("[TikAPI] Got %d videos for username=%s", len(videos), username)
+    return {"recent_videos": videos}
+
+
 def flag_internal_node(state: SREvaluationState) -> dict:
     """Flags requests that bypass the AI for internal human-led review."""
     tier = state.get("tier", "UNKNOWN")
@@ -215,11 +302,11 @@ def flag_internal_node(state: SREvaluationState) -> dict:
         "decision_reason": reasons.get(tier, f"Flagged for internal review. {val_reason}"),
     }
 
-def llm_score_node(state: SREvaluationState) -> dict:
-    """Stage 2: Invokes Gemini for a rich Profile/Product Compatibility Check"""
+def commerce_evaluation_node(state: SREvaluationState) -> dict:
+    """Stage 2: Gemini compatibility analysis — uses strictly standard TikTok Shop Commerce data."""
     creator = state.get("creator_data", {})
     product = state.get("product_data", {})
-    
+
     creator_open_id = creator.get("creator_open_id")
     product_id = product.get("id")
     access_token = state.get("access_token")
@@ -241,9 +328,11 @@ def llm_score_node(state: SREvaluationState) -> dict:
                 lambda: TikTokCreatorClient.get_detail(access_token, shop_cipher, creator_open_id),
             )
             if res_c and isinstance(res_c, dict) and "data" in res_c:
-                rich_creator_dict = res_c.get("data", {}).get("creator", {})
+                # The official API nests creator details inside data.creator
+                rich_creator_dict = res_c.get("data", {}).get("creator") or res_c.get("data", {})
+                logger.info("[Phase 2] Fetched rich TikTok affiliate creator profile for creator_id=%s", creator_open_id)
             else:
-                logger.warning("Failed to fetch rich creator detail for %s", creator_open_id)
+                logger.warning("[Phase 2] Failed to fetch TikTok affiliate creator profile for creator_id=%s", creator_open_id)
 
         # 2. Fetch rich product detail (cached)
         if product_id:
@@ -254,8 +343,9 @@ def llm_score_node(state: SREvaluationState) -> dict:
             )
             if res_p and isinstance(res_p, dict) and "data" in res_p:
                 rich_product_dict = res_p.get("data", {})
+                logger.info("[Phase 2] Fetched rich product detail for product_id=%s", product_id)
             else:
-                logger.warning("Failed to fetch rich product detail for %s", product_id)
+                logger.warning("[Phase 2] Failed to fetch rich product detail for product_id=%s", product_id)
         
     # --- RAG context retrieval (optional) ---
     rag_context_section = ""
@@ -279,32 +369,63 @@ def llm_score_node(state: SREvaluationState) -> dict:
 
     llm = ChatVertexAI(
         model_name=settings.vertex_model,
-        project="tiktok-ai-agent-488417",
+        project=settings.gcp_project,
         location="us-central1",
         temperature=0,
     )
-    structured_llm = llm.with_structured_output(ScoreResult)
+    structured_llm = llm.with_structured_output(CommerceScoreResult)
 
     prompt_str = CREATOR_EVALUATION_PROMPT.format(
         rag_context=rag_context_section,
         product_title=state.get("product_title"),
         tier=state.get("tier"),
-        product_json=json.dumps(rich_product_dict, indent=2),
-        creator_json=json.dumps(rich_creator_dict, indent=2),
+        product_json=json.dumps(_sanitize_product(rich_product_dict), indent=2),
+        creator_json=json.dumps(rich_creator_dict, indent=2),  # Sending full affiliate payload
     )
 
-    result = structured_llm.invoke(prompt_str)
+    res = structured_llm.invoke(prompt_str)
 
     return {
-        "llm_score": result.score,
-        "llm_reasoning": result.reasoning,
+        "commerce_score": res.score,
+        "commerce_reasoning": res.reasoning,
         "compatibility_status": "PROCESSED",
         "rich_creator_detail": rich_creator_dict,
-        "rich_product_detail": rich_product_dict
+        "rich_product_detail": rich_product_dict,
+        "product_description": rich_product_dict.get("description"),
     }
 
+
+def aesthetic_evaluation_node(state: SREvaluationState) -> dict:
+    """Stage 3: Gemini aesthetic integration — uses TikAPI video metadata."""
+    recent_videos = state.get("recent_videos") or []
+    recent_videos_json = json.dumps(recent_videos, indent=2) if recent_videos else "[]"
+    
+    llm = ChatVertexAI(
+        model_name=settings.vertex_model,
+        project=settings.gcp_project,
+        location="us-central1",
+        temperature=0,
+    )
+    structured_llm = llm.with_structured_output(AestheticScoreResult)
+
+    prompt_str = AESTHETIC_EVALUATION_PROMPT.format(
+        product_title=state.get("product_title"),
+        product_description=state.get("product_description") or "No description available.",
+        tier=state.get("tier"),
+        recent_videos_json=recent_videos_json,
+    )
+    
+    res = structured_llm.invoke(prompt_str)
+
+    return {
+        "aesthetic_score": res.aesthetic_score,
+        "aesthetic_reasoning": res.reasoning,
+        "top_3_video_urls": res.top_3_video_urls,
+    }
+
+
 def decision_node(state: SREvaluationState) -> dict:
-    """Makes a final ACCEPT/REJECT decision based on Stage 1 AND Stage 2 outputs."""
+    """Makes a final ACCEPT/REJECT decision based on Phase 2 AND Phase 3 outputs."""
     filters_passed = state.get("filters_passed", False)
     val_reason = state.get("validation_reason", "Failed validation.")
     tier = state.get("tier", "UNKNOWN")
@@ -313,24 +434,40 @@ def decision_node(state: SREvaluationState) -> dict:
     if not filters_passed:
          return {
              "final_decision": "REJECT",
-             "decision_reason": f"[Stage 1 Filter Failed] {val_reason}\n\nProduct Category: {tier}",
+             "decision_reason": f"[Phase 1 Filter Failed] {val_reason}\n\nProduct Category: {tier}",
              "compatibility_status": "SKIPPED"
          }
 
-    # 2. It passed Stage 1, so read the Stage 2 LLM Score
-    score = state.get("llm_score", 0)
+    # 2. Passed Stage 1, so both Phase 2 (Commerce) and Phase 3 (Aesthetic) ran.
+    c_score = state.get("commerce_score", 0)
+    a_score = state.get("aesthetic_score", 0)
     threshold = state.get("threshold", 70)
-    llm_reasoning = state.get("llm_reasoning", "No reasoning provided.")
+    # llm_reasoning = state.get("llm_reasoning", "No reasoning provided.")
+    
+    avg_score = (c_score + a_score) / 2
+    
+    c_reasoning = state.get("commerce_reasoning", "No reasoning provided.")
+    a_reasoning = state.get("aesthetic_reasoning", "No reasoning provided.")
+    top_videos = state.get("top_3_video_urls", [])
 
-    if score >= threshold:
+    video_links_str = "\n".join([f"- {url}" for url in top_videos]) if top_videos else "No matching videos found."
+
+    combined_reasoning = (
+        f"profile_score: {c_score}/100\n{c_reasoning}\n\n"
+        f"aesthetic_score: {a_score}/100\n{a_reasoning}\n\n"
+        f"Top Evidence Videos:\n{video_links_str}\n\n"
+        f"Product Category: {tier}"
+    )
+
+    if avg_score >= threshold:
         return {
             "final_decision": "ACCEPT",
-            "decision_reason": f"[Stage 2 Pass] Compatibility Score: {score}/100.\n\n{llm_reasoning}\n\nProduct Category: {tier}"
+            "decision_reason": combined_reasoning
         }
         
     return {
         "final_decision": "POTENTIAL_ACCEPT",
-        "decision_reason": f"[Stage 2 Fail] Compatibility Score: {score}/100.\n\n{llm_reasoning}\n\nProduct Category: {tier}"
+        "decision_reason": combined_reasoning
     }
 
 def route_after_validation(state: SREvaluationState) -> str:
@@ -353,5 +490,5 @@ def route_after_validation(state: SREvaluationState) -> str:
     if filters_passed is False:
         return "decision"
 
-    # Tier 3/4: threshold passed → LLM scoring
-    return "llm_score"
+    # Passed Phase 1 — go to Phase 2 (Commerce)
+    return "commerce_evaluation"

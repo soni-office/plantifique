@@ -155,18 +155,25 @@ class SampleAnalysisRepository:
             "org_id": org_id,
             "tiktok_sample_id": sample_id,
             "analysis_status": "COMPLETED",
+            "profile_score": result.get("profile_score"),
+            "profile_reasoning": result.get("profile_reasoning"),
+            "aesthetic_score": result.get("aesthetic_score"),
+            "aesthetic_reasoning": result.get("aesthetic_reasoning"),
+            "top_3_video_urls": result.get("top_3_video_urls") or [],
             "final_decision": result.get("final_decision"),
             "tier": result.get("tier"),
             "filters_passed": result.get("filters_passed"),
             "validation_reason": result.get("validation_reason"),
-            "analysis_score": result.get("llm_score"),
-            "analysis_reasoning": result.get("llm_reasoning"),
-            "decision_reason": result.get("decision_reason"),
+            # "analysis_score": result.get("llm_score"),
+            # "analysis_reasoning": result.get("llm_reasoning"),
+            # "decision_reason": result.get("decision_reason"),
             "review_status": "PENDING_REVIEW",
             "processed_at": now,
             "updated_at": now,
         }
         self.col.document(sample_id).set(update, merge=True)
+
+
 
     def mark_failed(self, sample_id: str, error: str) -> None:
         self.col.document(sample_id).set(
@@ -199,6 +206,7 @@ class SampleAnalysisRepository:
             },
             merge=True,
         )
+        return {"rating": rating, "comment": comment}
 
     def mark_processed_on_shop(self, sample_ids: set[str], ttl_days: int = 1) -> int:
         """
