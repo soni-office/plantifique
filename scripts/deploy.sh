@@ -20,7 +20,7 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 ENV="${1:-dev}"
-VERTEX_MODEL="${2:-gemini-2.0-flash-001}"
+VERTEX_MODEL="${2:-gemini-2.5-flash}"
 FIREBASE_TENANT_ID="teampop-6fiht"
 PROJECT_ID="tiktok-ai-agent-488417"
 REGION="us-central1"

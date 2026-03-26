@@ -14,10 +14,14 @@ _app: firebase_admin.App | None = None
 def _get_app() -> firebase_admin.App:
     global _app
     if _app is None:
-        # Uses Application Default Credentials (ADC) for local development.
-        # Cloud Run: the attached service account is used automatically.
-        _app = firebase_admin.initialize_app()
-        logger.info("Firebase Admin SDK initialised via ADC")
+        from app.core.config import settings
+        # Explicitly pass the GCP project ID so the SDK knows which Firebase
+        # project to verify tokens against. Without this, Cloud Run's ADC
+        # may not auto-detect the project correctly, causing aud/iss mismatches.
+        _app = firebase_admin.initialize_app(
+            options={"projectId": settings.gcp_project}
+        )
+        logger.info("Firebase Admin SDK initialised for project=%s", settings.gcp_project)
     return _app
 
 
@@ -31,7 +35,9 @@ def verify_firebase_token(id_token: str, expected_tenant_id: str) -> dict:
     """
     try:
         tenant_client = get_tenant_client(expected_tenant_id)
-        decoded = tenant_client.verify_id_token(id_token, check_revoked=True)
+        # check_revoked=False: revocation check requires identitytoolkit.admin
+        # IAM on the Cloud Run SA. Tokens expire naturally after 1 hour.
+        decoded = tenant_client.verify_id_token(id_token, check_revoked=False)
     except fb_auth.RevokedIdTokenError:
         raise InvalidTokenException("Firebase token has been revoked")
     except fb_auth.ExpiredIdTokenError:
