@@ -67,6 +67,7 @@ class UserRepository:
     def create(
         self,
         org_id: str,
+        uid: str | None = None,
         open_id: str | None = None,
         email: str | None = None,
         name: str | None = None,
@@ -74,8 +75,10 @@ class UserRepository:
     ) -> dict:
         """
         Create a new user document.
-        - ORG_ADMIN: the manager who completed TikTok OAuth (has open_id).
-        - ORG_MEMBER: a team member invited via email (no open_id).
+
+        If ``uid`` is provided (Firebase UID from GCIP) it is used as the
+        Firestore document ID so ``get_by_id(uid)`` works without a query.
+        Falls back to an auto-generated ID for legacy / non-GCIP users.
         """
         now = datetime.now(timezone.utc)
         data = {
@@ -88,8 +91,12 @@ class UserRepository:
             "created_at": now,
             "last_login_at": now,
         }
-        _, doc_ref = self.col.add(data)
-        data["id"] = doc_ref.id
+        if uid:
+            self.col.document(uid).set(data)
+            data["id"] = uid
+        else:
+            _, doc_ref = self.col.add(data)
+            data["id"] = doc_ref.id
         return data
 
     def touch_login(self, user_id: str) -> None:

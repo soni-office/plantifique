@@ -21,7 +21,8 @@ variable "secret_names" {
     jwt_secret_key            = "jwt-secret-key"
     app_key                   = "app-key"
     app_secret                = "app-secret"
-    # minmax_api_key            = "minmax-api-key"
     tiktok_encryption_key     = "tiktok-encryption-key"
+    firebase_web_api_key      = "firebase-web-api-key"
+    # minmax_api_key            = "minmax-api-key"
   }
 }

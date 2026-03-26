@@ -88,8 +88,9 @@ module "cloud_run" {
   frontend_url       = "https://tiktok-ai-agent-488417.web.app"
   extra_cors_origins = "https://tiktok-ai-agent-488417.firebaseapp.com"
   # Update redirect_uri after first prod deploy (Cloud Run URL is known then)
-  redirect_uri    = "https://plantifique-api-prod-placeholder.a.run.app/auth/tiktokshop/callback"
-  want_to_use_rag = true
+  redirect_uri       = "https://plantifique-api-prod-placeholder.a.run.app/auth/tiktokshop/callback"
+  firebase_tenant_id = var.firebase_tenant_id
+  want_to_use_rag    = true
   min_instances   = 1    # Keep warm in prod
   max_instances   = 10
   memory          = "2Gi"

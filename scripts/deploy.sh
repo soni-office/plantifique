@@ -21,6 +21,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 ENV="${1:-dev}"
 VERTEX_MODEL="${2:-gemini-2.0-flash-001}"
+FIREBASE_TENANT_ID="teampop-6fiht"
 PROJECT_ID="tiktok-ai-agent-488417"
 REGION="us-central1"
 REPO="plantifique"
@@ -93,7 +94,8 @@ echo "[4/4] Deploying to Cloud Run ($SERVICE_NAME)..."
 SECRETS="JWT_SECRET_KEY=plantifique-${ENV}-jwt-secret-key:latest,\
 APP_KEY=plantifique-${ENV}-app-key:latest,\
 APP_SECRET=plantifique-${ENV}-app-secret:latest,\
-TIKTOK_TOKEN_ENCRYPTION_KEY=plantifique-${ENV}-tiktok-encryption-key:latest"
+TIKTOK_TOKEN_ENCRYPTION_KEY=plantifique-${ENV}-tiktok-encryption-key:latest,\
+FIREBASE_WEB_API_KEY=plantifique-${ENV}-firebase-web-api-key:latest"
 
 # Non-sensitive env vars (env-specific)
 if [[ "$ENV" == "dev" ]]; then
@@ -130,7 +132,8 @@ JWT_ALGORITHM=HS256,\
 JWT_EXP_MINUTES=60,\
 AUTH_URL=https://auth.tiktok-shops.com/oauth/authorize,\
 TOKEN_URL=https://auth.tiktok-shops.com/api/v2/token/get,\
-VERTEX_MODEL=$VERTEX_MODEL"\
+VERTEX_MODEL=$VERTEX_MODEL,\
+FIREBASE_TENANT_ID=$FIREBASE_TENANT_ID"
 
 gcloud run deploy "$SERVICE_NAME" \
   --image="$IMAGE" \

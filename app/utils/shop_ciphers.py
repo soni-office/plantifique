@@ -6,10 +6,10 @@ from app.services.tiktok.token_service import TokenService
 from app.utils.api_sign import generate_sign
 
 
-def shop_cipher(user_id: str):
+def shop_cipher(org_id: str):
     url = f"{settings.base_url}/authorization/202309/shops"
     token_service = TokenService()
-    access_token = token_service.get_valid_access_token(user_id)
+    access_token = token_service.get_valid_access_token(org_id)
     headers = {
         "content-type": "application/json",
         "x-tts-access-token": access_token

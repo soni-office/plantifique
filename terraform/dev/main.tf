@@ -122,6 +122,7 @@ module "cloud_run" {
   frontend_url       = "https://tiktok-ai-agent-488417.web.app"
   extra_cors_origins = "https://tiktok-ai-agent-488417.firebaseapp.com"
   redirect_uri       = "https://plantifique-api-dev-wtgyyixkpa-uc.a.run.app/auth/tiktokshop/callback"
+  firebase_tenant_id = var.firebase_tenant_id
   want_to_use_rag    = true
   # min_instances      = 0
   # max_instances      = 3

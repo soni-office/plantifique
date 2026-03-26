@@ -22,7 +22,7 @@ async def search_products(
     # Sharing org-level credentials
     access_token = token_service.get_valid_access_token(user["org_id"])
 
-    res = shop_cipher(user["id"])
+    res = shop_cipher(user["org_id"])
     cipher = res["data"]["shops"][0]["cipher"]
 
     logger.info("Searching products for org=%s user=%s", user["org_id"], user["id"])
@@ -66,7 +66,7 @@ async def get_product(
     # 2. API on Cache Miss
     token_service = TokenService()
     access_token = token_service.get_valid_access_token(user["org_id"])
-    res = shop_cipher(user["id"])
+    res = shop_cipher(user["org_id"])
     cipher = res["data"]["shops"][0]["cipher"]
 
     logger.info("Cache miss. Fetching details for product=%s for org=%s", product_id, user["org_id"])
@@ -76,7 +76,6 @@ async def get_product(
         shop_cipher=cipher,
         product_id=product_id,
     )
-
     # 3. Cache Update
     product_data = tiktok_res.get("data")
     if product_data:

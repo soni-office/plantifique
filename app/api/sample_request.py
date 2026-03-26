@@ -24,7 +24,7 @@ async def search_sample_requests(
     """Fetch sample requests for this org. Returns mock data when MOCK_TIKTOK=true."""
     logger.info("Searching sample requests for user=%s org=%s", user["id"], user["org_id"])
 
-    if settings.mock_tiktok:
+    if settings.mock_sample_requests:
         from app.mock.sample_mock_data import get_mock_sample_requests
         return get_mock_sample_requests()
 

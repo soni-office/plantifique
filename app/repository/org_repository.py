@@ -27,5 +27,14 @@ class OrgRepository:
             data["id"] = doc_ref.id
         return data
 
+    def get_all(self) -> list[dict]:
+        docs = self.col.where("status", "==", "ACTIVE").stream()
+        results = []
+        for doc in docs:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            results.append(data)
+        return results
+
     def update_status(self, org_id: str, status: str) -> None:
         self.col.document(org_id).update({"status": status})

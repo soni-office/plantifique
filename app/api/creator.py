@@ -23,7 +23,7 @@ async def get_creators(
     # Uses org-level token sharing
     access_token = token_service.get_valid_access_token(user["org_id"])
     
-    res = shop_cipher(user["id"])
+    res = c(user["org_id"])
     cipher = res["data"]["shops"][0]["cipher"]
     
     logger.info("Searching creators for org=%s user=%s", user["org_id"], user["id"])
@@ -49,7 +49,7 @@ async def get_creators(
 
 
 @router.get("/creators/{creator_open_id}")
-async def get_creator_detail(
+def get_creator_detail(
     creator_open_id: str,
     user=Depends(get_current_user),
 ):
@@ -58,7 +58,6 @@ async def get_creator_detail(
     Cache-first: Returns from Firestore if available, otherwise fetches from TikTok.
     """
     repo = CreatorRepository()
-    
     # 1. Try Cache First (O(1))
     cached = repo.get(creator_open_id)
     if cached:
@@ -68,7 +67,7 @@ async def get_creator_detail(
     # 2. Fetch from TikTok on Cache Miss
     token_service = TokenService()
     access_token = token_service.get_valid_access_token(user["org_id"])
-    res = shop_cipher(user["id"])
+    res = shop_cipher(user["org_id"])
     cipher = res["data"]["shops"][0]["cipher"]
     
     logger.info("Cache miss. Fetching details for creator=%s for org=%s", creator_open_id, user["org_id"])
