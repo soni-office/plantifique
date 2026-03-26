@@ -64,10 +64,11 @@ push_secret() {
   echo "     Done"
 }
 
-push_secret "plantifique-${ENV}-jwt-secret-key"      "JWT_SECRET_KEY"
-push_secret "plantifique-${ENV}-app-key"              "APP_KEY"
-push_secret "plantifique-${ENV}-app-secret"           "APP_SECRET"
+push_secret "plantifique-${ENV}-jwt-secret-key"        "JWT_SECRET_KEY"
+push_secret "plantifique-${ENV}-app-key"               "APP_KEY"
+push_secret "plantifique-${ENV}-app-secret"            "APP_SECRET"
 push_secret "plantifique-${ENV}-tiktok-encryption-key" "TIKTOK_TOKEN_ENCRYPTION_KEY"
+push_secret "plantifique-${ENV}-firebase-web-api-key"  "FIREBASE_WEB_API_KEY"
 
 echo ""
 echo "============================================================"

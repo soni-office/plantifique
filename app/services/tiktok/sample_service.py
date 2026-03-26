@@ -11,7 +11,7 @@ class TikTokSampleService:
 
     @staticmethod
     def search(access_token: str, shop_cipher: str, page_size: int):
-        if settings.mock_tiktok:
+        if settings.mock_sample_requests:
             return get_mock_sample_requests()
     
         qs = {"page_size": page_size}

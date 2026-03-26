@@ -55,6 +55,13 @@ resource "google_project_iam_member" "ar_reader" {
   member  = "serviceAccount:${google_service_account.cloudrun_sa.email}"
 }
 
+# ---- IAM: Identity Toolkit (required for Firebase Admin SDK token verification) ----
+resource "google_project_iam_member" "identity_toolkit" {
+  project = var.project_id
+  role    = "roles/identitytoolkit.admin"
+  member  = "serviceAccount:${google_service_account.cloudrun_sa.email}"
+}
+
 # ---- IAM: Secret Manager accessor (project-level — only requires projectIAMAdmin) ----
 resource "google_project_iam_member" "secret_accessor" {
   project = var.project_id
@@ -88,8 +95,9 @@ module "cloud_run" {
   frontend_url       = "https://tiktok-ai-agent-488417.web.app"
   extra_cors_origins = "https://tiktok-ai-agent-488417.firebaseapp.com"
   # Update redirect_uri after first prod deploy (Cloud Run URL is known then)
-  redirect_uri    = "https://plantifique-api-prod-placeholder.a.run.app/auth/tiktokshop/callback"
-  want_to_use_rag = true
+  redirect_uri       = "https://plantifique-api-prod-placeholder.a.run.app/auth/tiktokshop/callback"
+  firebase_tenant_id = var.firebase_tenant_id
+  want_to_use_rag    = true
   min_instances   = 1    # Keep warm in prod
   max_instances   = 10
   memory          = "2Gi"

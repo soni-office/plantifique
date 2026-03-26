@@ -24,6 +24,11 @@ class Settings:
     firestore_database: str = os.getenv('FIRESTORE_DATABASE', '')
 
     # -------------------------------------------------------------------------
+    # Organisation
+    # -------------------------------------------------------------------------
+    org_id: str = os.getenv('ORG_ID', 'org_plantifique')
+
+    # -------------------------------------------------------------------------
     # Auth / JWT
     # -------------------------------------------------------------------------
     jwt_secret_key: str = os.getenv('JWT_SECRET_KEY', 'change_me_in_env')
@@ -39,7 +44,9 @@ class Settings:
     auth_url: str = os.getenv('AUTH_URL', 'https://auth.tiktok-shops.com/oauth/authorize')
     token_url: str = os.getenv('TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/get')
     base_url: str = 'https://open-api.tiktokglobalshop.com'
-    mock_tiktok: bool = True
+    mock_tiktok: bool = os.getenv('MOCK_TIKTOK', 'false').lower() == 'true'
+    # Sample requests are not yet granted API access — keep them mocked independently
+    mock_sample_requests: bool = os.getenv('MOCK_SAMPLE_REQUESTS', 'true').lower() == 'true'
 
     # -------------------------------------------------------------------------
     # Frontend / CORS
@@ -77,6 +84,23 @@ class Settings:
         'PRODUCT_SEARCH_PATH',
         '/affiliate_seller/202508/marketplace_products/search',
     )
+
+    # -------------------------------------------------------------------------
+    # Automation / Internal Scheduler
+    # -------------------------------------------------------------------------
+    # Shared secret between Cloud Scheduler and the /internal/* endpoints.
+    # Store in GCP Secret Manager — never commit this value.
+    internal_api_secret: str = os.getenv('INTERNAL_API_SECRET', '')
+
+    # -------------------------------------------------------------------------
+    # Google Cloud Identity Platform (GCIP) — multi-tenant auth
+    # -------------------------------------------------------------------------
+    # Tenant ID from the Identity Platform console.
+    # dev → teampop-6fiht  |  prod → set via FIREBASE_TENANT_ID env var
+    firebase_tenant_id: str = os.getenv('FIREBASE_TENANT_ID', 'teampop-6fiht')
+    # Web API Key — used by the REST-based invite email sender.
+    # Found in Firebase console → Project Settings → General → Web API Key.
+    firebase_web_api_key: str = os.getenv('FIREBASE_WEB_API_KEY', '')
 
     # -------------------------------------------------------------------------
     # RAG

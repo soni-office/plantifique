@@ -76,6 +76,13 @@ resource "google_project_iam_member" "vertex_ai" {
   member  = "serviceAccount:${google_service_account.cloudrun_sa.email}"
 }
 
+# ---- IAM: Identity Toolkit (required for Firebase Admin SDK token verification) ----
+resource "google_project_iam_member" "identity_toolkit" {
+  project = var.project_id
+  role    = "roles/identitytoolkit.admin"
+  member  = "serviceAccount:${google_service_account.cloudrun_sa.email}"
+}
+
 # ---- IAM: Secret Manager accessor (project-level — only requires projectIAMAdmin) ----
 resource "google_project_iam_member" "secret_accessor" {
   project = var.project_id
@@ -122,6 +129,7 @@ module "cloud_run" {
   frontend_url       = "https://tiktok-ai-agent-488417.web.app"
   extra_cors_origins = "https://tiktok-ai-agent-488417.firebaseapp.com"
   redirect_uri       = "https://plantifique-api-dev-wtgyyixkpa-uc.a.run.app/auth/tiktokshop/callback"
+  firebase_tenant_id = var.firebase_tenant_id
   want_to_use_rag    = true
   # min_instances      = 0
   # max_instances      = 3

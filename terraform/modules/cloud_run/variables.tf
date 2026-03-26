@@ -54,6 +54,11 @@ variable "firestore_database" {
   default     = ""
 }
 
+variable "firebase_tenant_id" {
+  description = "GCIP tenant ID for this environment (Identity Platform)"
+  type        = string
+}
+
 variable "want_to_use_rag" {
   description = "Enable RAG pipeline"
   type        = bool

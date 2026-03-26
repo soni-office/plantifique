@@ -6,6 +6,8 @@ from app.api import creator
 from app.api import auth_session
 from app.api import agent
 from app.api import product
+from app.api import internal
+from app.api import org
 from app.api.auth_tiktokshop import router as tiktok_auth_router
 
 app = FastAPI()
@@ -32,3 +34,5 @@ app.include_router(sample_request.router)
 app.include_router(product.router)
 app.include_router(agent.router)
 app.include_router(creator.router)
+app.include_router(internal.router)
+app.include_router(org.router)

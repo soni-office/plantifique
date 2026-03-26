@@ -61,6 +61,10 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "VERTEX_MODEL"
         value = var.vertex_model
       }
+      env {
+        name  = "FIREBASE_TENANT_ID"
+        value = var.firebase_tenant_id
+      }
       env { 
         name = "JWT_ALGORITHM"
         value = "HS256" 
@@ -108,6 +112,16 @@ resource "google_cloud_run_v2_service" "api" {
         value_source {
           secret_key_ref {
             secret  = var.secret_ids["app_secret"]
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "FIREBASE_WEB_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = var.secret_ids["firebase_web_api_key"]
             version = "latest"
           }
         }

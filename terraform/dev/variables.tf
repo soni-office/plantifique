@@ -17,3 +17,9 @@ variable "image" {
   # before any real image has been built. deploy.sh will override this.
   default = "us-docker.pkg.dev/cloudrun/container/hello:latest"
 }
+
+variable "firebase_tenant_id" {
+  description = "GCIP tenant ID for this environment (Identity Platform)"
+  type        = string
+  default     = "teampop-6fiht"
+}

@@ -73,7 +73,6 @@ class TikTokClient:
         final_url = f"{uri}?{urlencode(sorted_qs)}"
 
         print("Final URL:", final_url)
-        # breakpoint()
         response = requests.get(final_url, headers=headers)
         response.raise_for_status()
         return response.json()
