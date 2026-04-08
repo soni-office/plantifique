@@ -1,8 +1,4 @@
-
-
 from app.services.tiktok.client import TikTokClient
-from app.core.config import settings
-from app.mock.sample_mock_data import get_mock_sample_requests
 
 SAMPLE_PATH = "/affiliate_seller/202508/sample_applications/search"
 
@@ -10,14 +6,23 @@ SAMPLE_PATH = "/affiliate_seller/202508/sample_applications/search"
 class TikTokSampleService:
 
     @staticmethod
-    def search(access_token: str, shop_cipher: str, page_size: int):
-        if settings.mock_sample_requests:
-            return get_mock_sample_requests()
-    
+    def search(
+        access_token: str,
+        shop_cipher: str,
+        page_size: int = 30,
+        page_token: str | None = None,
+        status: str = "PENDING",
+    ) -> dict:
+        """
+        Fetch one page of sample applications from TikTok.
+        Returns the raw TikTok response dict:
+          { code, data: { sample_applications: [...], next_page_token: "..." } }
+        """
         qs = {"page_size": page_size}
-        body = {}
-        print("inside service tiktok sample service")
-        # breakpoint()
+        body: dict = {"status": status}
+        if page_token:
+            body["page_token"] = page_token
+
         return TikTokClient.post(
             path=SAMPLE_PATH,
             access_token=access_token,

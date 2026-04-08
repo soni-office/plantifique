@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from google.cloud.firestore_v1 import Query
 from app.db.firestore import db
 
 
@@ -38,6 +39,124 @@ class SampleAnalysisRepository:
             "rating": record.get("feedback_rating"),
             "comment": record.get("feedback_comment", ""),
         }
+
+    def upsert_from_tiktok(self, org_id: str, application: dict) -> bool:
+        """
+        Upsert a raw TikTok sample application into Firestore.
+        - If the document is NEW → sets analysis_status=QUEUED, review_status=PENDING_REVIEW, first_seen_at=now
+        - If it already EXISTS → only updates TikTok fields + last_synced_at (never overwrites analysis data)
+        Returns True if this was a new record.
+        """
+        sample_id = application["id"]
+        now = datetime.now(timezone.utc)
+
+        tiktok_fields = {
+            "org_id": org_id,
+            "tiktok_sample_id": sample_id,
+            "tiktok_status": application.get("status"),
+            "commission_rate": application.get("commission_rate"),
+            "available_quantity": application.get("available_quantity"),
+            "is_approvable": application.get("is_approvable"),
+            "approve_expiration_time": application.get("approve_expiration_time"),
+            "order_id": application.get("order_id"),
+            "creator": application.get("creator", {}),
+            "product": application.get("product", {}),
+            "last_synced_at": now,
+        }
+
+        doc_ref = self.col.document(sample_id)
+        existing = doc_ref.get()
+
+        if not existing.exists:
+            tiktok_fields.update({
+                "analysis_status": "QUEUED",
+                "review_status": "PENDING_REVIEW",
+                "first_seen_at": now,
+            })
+            doc_ref.set(tiktok_fields)
+            return True
+
+        doc_ref.update(tiktok_fields)
+        return False
+
+    def list_for_org(
+        self,
+        org_id: str,
+        page_size: int = 30,
+        start_after_id: str | None = None,
+    ) -> tuple[list[dict], str | None]:
+        """
+        Cursor-based paginated list for an org, newest first.
+        Returns (items, next_cursor) — next_cursor is None on the last page.
+
+        NOTE: Requires a Firestore composite index on (org_id ASC, first_seen_at DESC).
+        If you get an index error, follow the link in the error message to create it.
+        """
+        query = (
+            self.col
+            .where("org_id", "==", org_id)
+            .order_by("first_seen_at", direction=Query.DESCENDING)
+            .limit(page_size + 1)
+        )
+
+        if start_after_id:
+            snap = self.col.document(start_after_id).get()
+            if snap.exists:
+                query = query.start_after(snap)
+
+        docs = list(query.stream())
+        has_more = len(docs) > page_size
+        if has_more:
+            docs = docs[:page_size]
+
+        items = [{**doc.to_dict(), "id": doc.id} for doc in docs]
+        next_cursor = docs[-1].id if has_more else None
+        return items, next_cursor
+
+    def get_all_tiktok_pending_ids(self, org_id: str) -> set[str]:
+        """
+        Return the set of document IDs in this org that still have tiktok_status=PENDING.
+        Uses a field-mask select so only one field is read per document — cheap even at 2 000 docs.
+        Filters in Python to avoid needing a composite index on (org_id, tiktok_status).
+        """
+        docs = (
+            self.col
+            .where("org_id", "==", org_id)
+            .select(["tiktok_status"])
+            .stream()
+        )
+        return {doc.id for doc in docs if doc.to_dict().get("tiktok_status") == "PENDING"}
+
+    def mark_processed_on_shop(self, sample_ids: set[str], ttl_days: int = 3) -> int:
+        """
+        Mark a set of sample IDs as no longer PENDING on TikTok Shop.
+        Sets:
+          tiktok_status  = PROCESSED_ON_SHOP
+          delete_at      = now + ttl_days  ← Firestore TTL field auto-deletes the doc
+        Uses batched writes (≤500 per batch, Firestore limit).
+        Returns the count of documents updated.
+        """
+        if not sample_ids:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        delete_at = now + timedelta(days=ttl_days)
+        ids = list(sample_ids)
+        updated = 0
+
+        for i in range(0, len(ids), 500):
+            batch = db.batch()
+            for sid in ids[i : i + 500]:
+                batch.update(self.col.document(sid), {
+                    "tiktok_status": "PROCESSED_ON_SHOP",
+                    "processed_on_shop_at": now,
+                    "delete_at": delete_at,
+                    "updated_at": now,
+                })
+                updated += 1
+            batch.commit()
+
+        return updated
 
     def queue(self, sample_id: str, org_id: str) -> dict:
         now = datetime.now(timezone.utc)

@@ -1,6 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
-import logging
 
 from app.api.auth_session import get_current_user
 from app.services.tiktok.token_service import TokenService
@@ -9,36 +10,116 @@ from app.repository.sample_analysis_repository import SampleAnalysisRepository
 from app.repository.creator_repository import CreatorRepository
 from app.repository.product_repository import ProductRepository
 from app.utils.shop_ciphers import shop_cipher
-from app.core.config import settings
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
-
 logger = logging.getLogger(__name__)
 
 
-@router.get("/search")
-async def search_sample_requests(
-    page_size: int = Query(20),
+def _get_token_and_cipher(org_id: str) -> tuple[str, str]:
+    access_token = TokenService().get_valid_access_token(org_id)
+    res = shop_cipher(org_id)
+    cipher = res["data"]["shops"][0]["cipher"]
+    return access_token, cipher
+
+
+# ── List (from DB, paginated) ─────────────────────────────────────────────
+
+@router.get("")
+async def list_sample_requests(
+    page_size: int = Query(30, ge=1, le=100),
+    cursor: str | None = Query(None, description="Cursor from previous page's next_cursor"),
     user=Depends(get_current_user),
 ):
-    """Fetch sample requests for this org. Returns mock data when MOCK_TIKTOK=true."""
-    logger.info("Searching sample requests for user=%s org=%s", user["id"], user["org_id"])
-
-    if settings.mock_sample_requests:
-        from app.mock.sample_mock_data import get_mock_sample_requests
-        return get_mock_sample_requests()
-
-    token_service = TokenService()
-    access_token = token_service.get_valid_access_token(user["org_id"])
-    res = shop_cipher(user["org_id"])
-    cipher = res["data"]["shops"][0]["cipher"]
-
-    return TikTokSampleService.search(
-        access_token=access_token,
-        shop_cipher=cipher,
+    """
+    Return a page of sample requests from Firestore (previously synced from TikTok).
+    Use cursor=<next_cursor from previous response> to fetch subsequent pages.
+    """
+    repo = SampleAnalysisRepository()
+    items, next_cursor = repo.list_for_org(
+        org_id=user["org_id"],
         page_size=page_size,
+        start_after_id=cursor or None,
     )
+    return {
+        "items": items,
+        "next_cursor": next_cursor,
+        "has_more": next_cursor is not None,
+    }
 
+
+# ── Sync from TikTok into DB ──────────────────────────────────────────────
+
+@router.post("/sync")
+async def sync_sample_requests(
+    user=Depends(get_current_user),
+):
+    """
+    Pull all PENDING sample requests from TikTok and upsert them into Firestore.
+    Safe to re-run — existing analysis data is never overwritten.
+    Returns counts of new vs already-known records.
+    """
+    logger.info("Sync started org=%s by=%s", user["org_id"], user["id"])
+    access_token, cipher = _get_token_and_cipher(user["org_id"])
+    
+    repo = SampleAnalysisRepository()
+    page_token: str | None = None
+    new_count = 0
+    updated_count = 0
+    page_num = 0
+    tiktok_ids_seen: set[str] = set()   # every PENDING ID returned by TikTok this run
+
+    # ── Forward pass: upsert everything TikTok says is PENDING ───────────
+    while True:
+        page_num += 1
+        result = TikTokSampleService.search(
+            access_token=access_token,
+            shop_cipher=cipher,
+            page_size=50,
+            page_token=page_token,
+            status="PENDING",
+        )
+
+        if result.get("code") != 0:
+            logger.error("TikTok API error during sync: %s", result)
+            raise HTTPException(status_code=502, detail=f"TikTok API error: {result.get('message')}")
+
+        batch = result.get("data", {}).get("sample_applications") or []
+        for app in batch:
+            tiktok_ids_seen.add(app["id"])
+            is_new = repo.upsert_from_tiktok(org_id=user["org_id"], application=app)
+            if is_new:
+                new_count += 1
+            else:
+                updated_count += 1
+
+        logger.info("Sync page=%s batch=%s new=%s updated=%s", page_num, len(batch), new_count, updated_count)
+
+        next_token = result.get("data", {}).get("next_page_token", "")
+        if not next_token or not batch:
+            break
+        page_token = next_token
+
+    # ── Backward pass: mark anything no longer PENDING on TikTok ─────────
+    # IDs in DB with tiktok_status=PENDING but absent from today's TikTok response
+    # were approved / rejected / withdrawn on the shop side.
+    db_pending_ids = repo.get_all_tiktok_pending_ids(user["org_id"])
+    stale_ids = db_pending_ids - tiktok_ids_seen
+    processed_count = repo.mark_processed_on_shop(stale_ids, ttl_days=3)
+
+    logger.info(
+        "Sync complete org=%s new=%s updated=%s processed=%s pages=%s",
+        user["org_id"], new_count, updated_count, processed_count, page_num,
+    )
+    return {
+        "status": "ok",
+        "new": new_count,
+        "updated": updated_count,
+        "marked_processed": processed_count,
+        "pages_fetched": page_num,
+    }
+
+
+# ── AI Evaluate ───────────────────────────────────────────────────────────
 
 @router.post("/{sample_id}/evaluate")
 async def evaluate_sample_request(
@@ -54,15 +135,7 @@ async def evaluate_sample_request(
     analysis_repo = SampleAnalysisRepository()
 
     try:
-        if settings.mock_tiktok:
-            access_token = "mock_access_token"
-            cipher = "mock_cipher"
-        else:
-            token_service = TokenService()
-            access_token = token_service.get_valid_access_token(user["org_id"])
-            res = shop_cipher(user["org_id"])
-            cipher = res["data"]["shops"][0]["cipher"]
-
+        access_token, cipher = _get_token_and_cipher(user["org_id"])
         result = run_sr_agent(
             sample_request_id=sample_id,
             access_token=access_token,
@@ -102,6 +175,8 @@ async def evaluate_sample_request(
         return {"status": "error", "message": str(e)}
 
 
+# ── Review status ─────────────────────────────────────────────────────────
+
 class ReviewStatusBody(BaseModel):
     status: str
 
@@ -116,11 +191,13 @@ async def update_review_status(
     try:
         repo = SampleAnalysisRepository()
         repo.set_review_status(sample_id, body.status)
-        logger.info("Review status updated: sample_id=%s status=%s by user=%s", sample_id, body.status, user["id"])
+        logger.info("Review status updated sample_id=%s status=%s by=%s", sample_id, body.status, user["id"])
         return {"status": "success", "sample_id": sample_id, "review_status": body.status}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+
+# ── Feedback ──────────────────────────────────────────────────────────────
 
 class FeedbackBody(BaseModel):
     rating: str

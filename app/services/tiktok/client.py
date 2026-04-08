@@ -1,4 +1,3 @@
-import json
 import time
 import requests
 from urllib.parse import urlencode
@@ -10,9 +9,7 @@ class TikTokClient:
 
     @staticmethod
     def post(path: str, access_token: str, shop_cipher: str, qs: dict, body: dict):
-        path_only=path
-        uri = f"{settings.base_url}{path_only}"
-        print(">>>>>>>", shop_cipher)
+        uri = f"{settings.base_url}{path}"
         headers = {
             "content-type": "application/json",
             "x-tts-access-token": access_token,
@@ -25,29 +22,21 @@ class TikTokClient:
             "shop_cipher": shop_cipher,
         })
         request_option = {
-            "uri" : uri,
+            "uri": uri,
             "qs": qs,
             "headers": headers,
             "body": body,
         }
-
         sign = generate_sign(request_option, settings.app_secret)
         qs["sign"] = sign
-        
-        sorted_qs = dict(sorted(qs.items()))
-        final_url = f"{uri}?{urlencode(sorted_qs)}"
-
-        print("Final URL:", final_url)
-        print("Request Body:", json.dumps(body, separators=(",", ":")))
+        final_url = f"{uri}?{urlencode(dict(sorted(qs.items())))}"
         response = requests.post(final_url, headers=headers, json=body)
         response.raise_for_status()
         return response.json()
 
     @staticmethod
     def get(path: str, access_token: str, shop_cipher: str, qs: dict):
-        path_only = path
-        uri = f"{settings.base_url}{path_only}"
-
+        uri = f"{settings.base_url}{path}"
         headers = {
             "content-type": "application/json",
             "x-tts-access-token": access_token,
@@ -60,7 +49,7 @@ class TikTokClient:
         })
 
         request_option = {
-            "uri": path_only,
+            "uri": path,
             "qs": qs,
             "headers": headers,
             "body": {},
@@ -69,10 +58,7 @@ class TikTokClient:
         sign = generate_sign(request_option, settings.app_secret)
         qs["sign"] = sign
 
-        sorted_qs = dict(sorted(qs.items()))
-        final_url = f"{uri}?{urlencode(sorted_qs)}"
-
-        print("Final URL:", final_url)
+        final_url = f"{uri}?{urlencode(dict(sorted(qs.items())))}"
         response = requests.get(final_url, headers=headers)
         response.raise_for_status()
         return response.json()

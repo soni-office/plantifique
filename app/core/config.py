@@ -43,6 +43,7 @@ class Settings:
     redirect_uri: str = os.getenv('REDIRECT_URI', 'http://localhost:8000/auth/tiktokshop/callback')
     auth_url: str = os.getenv('AUTH_URL', 'https://auth.tiktok-shops.com/oauth/authorize')
     token_url: str = os.getenv('TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/get')
+    refresh_token_url: str = os.getenv('REFRESH_TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/refresh')
     base_url: str = 'https://open-api.tiktokglobalshop.com'
     mock_tiktok: bool = os.getenv('MOCK_TIKTOK', 'false').lower() == 'true'
     # Sample requests are not yet granted API access — keep them mocked independently

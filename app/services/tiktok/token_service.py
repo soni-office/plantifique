@@ -33,14 +33,13 @@ class TokenService:
         now = int(datetime.now(timezone.utc).timestamp())
 
         # Safety buffer: treat token as expired 60s before actual expiry
-        buffer_seconds = 60
+        buffer_seconds = 120
         expires_at = token_row.get("access_token_expires_at", 0)
         is_expired = now >= (expires_at - buffer_seconds)
 
         # Happy path: token is still valid — return immediately
         if not is_expired:
             return token_row["access_token"]
-
         # Token is expired — perform silent background refresh
         print(f"[TokenService] Access token expired for org_id={org_id}. Refreshing...")
         try:
@@ -52,12 +51,14 @@ class TokenService:
             new_refresh_token = new_data.get(
                 "refresh_token", token_row["refresh_token"]
             )
-            new_expires_at = now + new_data["access_token_expire_in"]
+            new_access_token_expires_at = new_data["access_token_expire_in"]
+            new_refresh_token_expires_at = new_data["refresh_token_expire_in"]
 
             self.repo.update_tokens(org_id, {
                 "access_token": new_access_token,
                 "refresh_token": new_refresh_token,
-                "access_token_expires_at": new_expires_at,
+                "access_token_expires_at": new_access_token_expires_at,
+                "refresh_token_expires_at": new_refresh_token_expires_at,
             })
 
             print(f"[TokenService] Token refreshed successfully for org_id={org_id}")

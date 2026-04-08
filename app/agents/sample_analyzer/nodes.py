@@ -5,12 +5,7 @@ import os
 from pydantic import BaseModel, Field
 from langchain_google_vertexai import ChatVertexAI
 
-from app.agents.tools import (
-    fetch_sample_by_id,
-    get_tier,
-    TIER_3_THRESHOLDS,
-    TIER_4_THRESHOLDS,
-)
+from app.agents.tools import fetch_sample_from_db, resolve_tier
 from app.agents.sample_analyzer.state import SREvaluationState
 from app.agents.sample_analyzer.prompts import CREATOR_EVALUATION_PROMPT
 from app.core.config import settings
@@ -26,31 +21,25 @@ class ScoreResult(BaseModel):
     reasoning: str = Field(description="Brief explanation of the score")
 
 def fetch_data_node(state: SREvaluationState) -> dict:
-    """Fetches sample request data and configures thresholds based on tier."""
+    """Fetch sample from DB, then resolve tier + thresholds via DB config."""
     sample_id = state["sample_request_id"]
-    access_token = state.get("access_token")
-    shop_cipher = state.get("shop_cipher")
-    
-    sample = fetch_sample_by_id(sample_id, access_token=access_token, shop_cipher=shop_cipher)
 
+    sample = fetch_sample_from_db(sample_id)
     if not sample:
         return {
             "tier": "UNKNOWN",
             "final_decision": "ERROR",
-            "decision_reason": f"Sample request '{sample_id}' not found.",
+            "decision_reason": f"Sample request '{sample_id}' not found in DB.",
         }
 
-    creator = sample["creator"]
-    product = sample["product"]
-    product_title = product["title"]
-    tier = get_tier(product_title)
+    creator = sample.get("creator", {})
+    product = sample.get("product", {})
+    username = creator.get("username", "")
+    product_id = product.get("id", "")
+    product_title = product.get("title", "")
+    org_id = sample.get("org_id", "")
 
-    # Set thresholds depending on tier
-    thresholds = {}
-    if tier == "TIER_3":
-        thresholds = TIER_3_THRESHOLDS.get(product_title, {})
-    elif tier == "TIER_4":
-        thresholds = TIER_4_THRESHOLDS.get(product_title, {})
+    tier, thresholds = resolve_tier(org_id=org_id, username=username, product_id=product_id)
 
     return {
         "tier": tier,
@@ -61,65 +50,88 @@ def fetch_data_node(state: SREvaluationState) -> dict:
         "post_rate": float(creator.get("fulfillment_percentage", 0)),
     }
 
-def validation_node(state: SREvaluationState) -> dict:
-    """Stage 1: Strict Heuristic Rules (GMV/Follower Thresholds)"""
-    creator = state.get("creator_data", {})
-    thresholds = state.get("thresholds", {})
-    tier = state.get("tier", "UNKNOWN")
-
-    region = creator.get("selection_region", "UNKNOWN")
+def _check_thresholds(creator: dict, thresholds: dict, post_rate: float) -> tuple[bool, str]:
+    """
+    Apply threshold checks. Any threshold key set to None is skipped.
+    Returns (passed: bool, reason: str).
+    """
     followers = creator.get("follower_count", 0)
     gmv = float(creator.get("gmv", {}).get("amount", 0))
+    content_count = creator.get("content_count", 0)
+    ec_video_views = creator.get("ec_video_view", 0)
+
+    checks = [
+        ("min_last_30_days_gmv",  gmv,           f"GMV ${gmv:,.2f}",                    "needs ${val:,.2f}"),
+        ("min_follower_count",    followers,      f"Followers {followers:,}",             "needs {val:,}"),
+        ("min_post_rate",         post_rate,      f"Post rate {post_rate}%",              "needs {val}%"),
+        ("min_content_count",     content_count,  f"Content count {content_count}",       "needs {val}"),
+        ("min_ec_video_views",    ec_video_views, f"EC video views {ec_video_views:,}",   "needs {val:,}"),
+    ]
+
+    for key, actual, actual_label, need_template in checks:
+        minimum = thresholds.get(key)
+        if minimum is None:
+            continue   # threshold not configured → skip
+        if actual < minimum:
+            need_str = need_template.format(val=minimum)
+            return False, f"Failed {key}: {actual_label}, {need_str}."
+
+    return True, "Passed all configured threshold checks."
+
+
+def validation_node(state: SREvaluationState) -> dict:
+    """
+    Stage 1: Threshold validation.
+
+    TIER_1 / TIER_2  → skip entirely (exception/retainer lists, internal processing)
+    TIER_3 / TIER_4  → check per-product thresholds; fail → REJECT, pass → proceed to LLM
+    TIER_5           → check global thresholds; fail or pass → FLAG_INTERNAL (no LLM)
+    UNKNOWN          → FLAG_INTERNAL immediately
+    """
+    creator = state.get("creator_data", {})
+    thresholds = state.get("thresholds") or {}
+    tier = state.get("tier", "UNKNOWN")
     post_rate = state.get("post_rate", 0.0)
 
-    min_gmv = thresholds.get("min_gmv", 0)
-    min_followers = thresholds.get("min_followers", 0)
-    min_post_rate = thresholds.get("min_post_rate", 0)
+    logger.info(
+        "Validation tier=%s username=%s followers=%s gmv=%s post_rate=%s",
+        tier,
+        creator.get("username"),
+        creator.get("follower_count"),
+        creator.get("gmv", {}).get("amount"),
+        post_rate,
+    )
 
-    print(f"[DEBUG] Validation Check for {creator.get('username')}: region={region}, tier={tier}, gmv={gmv}, followers={followers}, post_rate={post_rate}")
-
-
-
-    # Reject if Tier 3/4 thresholds are not met
-    if tier in ("TIER_3", "TIER_4"):
-        if gmv < min_gmv:
-             print(f"[DEBUG] Filter Failed: GMV {gmv} < {min_gmv}")
-             return {"filters_passed": False, "validation_reason": f"Failed GMV threshold. Has ${gmv:,.2f}, needs ${min_gmv:,.2f}."}
-        if followers < min_followers:
-             print(f"[DEBUG] Filter Failed: Followers {followers} < {min_followers}")
-             return {"filters_passed": False, "validation_reason": f"Failed Follower threshold. Has {followers:,}, needs {min_followers:,}."}
-        if post_rate < min_post_rate:
-             print(f"[DEBUG] Filter Failed: Post Rate {post_rate} < {min_post_rate}")
-             return {"filters_passed": False, "validation_reason": f"Failed Post Rate threshold. Has {post_rate}%, needs {min_post_rate}%."}
-
-    print(f"[DEBUG] Validation Passed for {creator.get('username')}")
-
-    # If it's Tier 3 or 4 and it reached here, it passed.
-    if tier in ("TIER_3", "TIER_4"):
+    if tier in ("TIER_1", "TIER_2", "UNKNOWN"):
         return {
-            "filters_passed": True,
-            "validation_reason": "Passed all baseline threshold checks."
+            "filters_passed": None,
+            "validation_reason": f"{tier} — routed to internal team, no threshold checks.",
         }
 
-    # For Tier 1/2/5, we explicitly skip strict filtering
+    passed, reason = _check_thresholds(creator, thresholds, post_rate)
+
+    if tier in ("TIER_3", "TIER_4"):
+        return {"filters_passed": passed, "validation_reason": reason}
+
+    # TIER_5: always goes to FLAG_INTERNAL, but we record whether thresholds passed
     return {
-        "filters_passed": None, 
-        "validation_reason": f"Heuristic filters skipped for {tier} (Handling is manual/white-glove)."
+        "filters_passed": passed,
+        "validation_reason": f"TIER_5 — {reason}",
     }
 
 def flag_internal_node(state: SREvaluationState) -> dict:
     """Flags requests that bypass the AI for internal human-led review."""
     tier = state.get("tier", "UNKNOWN")
+    val_reason = state.get("validation_reason", "")
     reasons = {
-        "TIER_1": f"Retainer creator ({tier}) — handled by internal team (white-glove service).",
-        "TIER_2": f"Exception list creator ({tier}) — requires manual internal review (Discord/DMs).",
-        "TIER_5": f"Product not in strategic focus ({tier}) — flagged for internal review only.",
-        "UNKNOWN": f"Product tier could not be determined ({tier}) — flagged for manual review.",
+        "TIER_1": "Retainer creator (TIER_1) — handled by internal team, no agentic processing.",
+        "TIER_2": "Exception list creator (TIER_2) — requires manual internal review (Discord/DMs).",
+        "TIER_5": f"Not in Tier 3/4 product list (TIER_5) — standard metric filter applied. {val_reason}",
+        "UNKNOWN": "Tier could not be determined — flagged for manual review.",
     }
-
     return {
         "final_decision": "FLAG_INTERNAL",
-        "decision_reason": reasons.get(tier, "Flagged for internal review."),
+        "decision_reason": reasons.get(tier, f"Flagged for internal review. {val_reason}"),
     }
 
 def llm_score_node(state: SREvaluationState) -> dict:
@@ -231,20 +243,24 @@ def decision_node(state: SREvaluationState) -> dict:
     }
 
 def route_after_validation(state: SREvaluationState) -> str:
-    """Routing after Step 1 Validation."""
+    """Routing after validation node."""
     if state.get("final_decision") == "ERROR":
         return "end"
 
-    filters_passed = state.get("filters_passed")
     tier = state.get("tier", "UNKNOWN")
+    filters_passed = state.get("filters_passed")
 
-    # TIER_1/2/5/UNKNOWN: filters_passed is None (skipped) — route to internal review
-    if tier in ("TIER_1", "TIER_2", "TIER_5", "UNKNOWN"):
+    # Tier 1/2: exception/retainer lists → internal team, no LLM
+    if tier in ("TIER_1", "TIER_2", "UNKNOWN"):
         return "flag_internal"
 
-    # TIER_3/4: filters explicitly failed — skip LLM, go straight to decision
+    # Tier 5: standard metric filter applied → always flag internal, no LLM
+    if tier == "TIER_5":
+        return "flag_internal"
+
+    # Tier 3/4: threshold failed → reject, no LLM
     if filters_passed is False:
         return "decision"
-    
-    # Needs LLM Compatibility evaluation!
+
+    # Tier 3/4: threshold passed → LLM scoring
     return "llm_score"

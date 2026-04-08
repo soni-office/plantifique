@@ -6,10 +6,9 @@ class TikTokProductService:
 
     @staticmethod
     def search(access_token: str, shop_cipher: str, page_size: int):
-
+        
         qs = {"page_size": page_size}
-        body = {"status": "ALL"}
-
+        body = {"status": "ACTIVATE"}
         return TikTokClient.post(
             path=PRODUCT_PATH,
             access_token=access_token,
@@ -20,7 +19,6 @@ class TikTokProductService:
 
     @staticmethod
     def get_product_by_id(access_token: str, shop_cipher: str, product_id: str):
-        
         path = PRODUCT_DETAIL_PATH.format(product_id=product_id)
         qs = {}
 

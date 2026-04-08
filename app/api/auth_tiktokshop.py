@@ -103,12 +103,12 @@ async def callback(
 
     # Exchange the auth code for TikTok tokens (mocked when MOCK_TIKTOK=true)
     token_data = TikTokOAuthService.exchange_code_for_token(code)
-    open_id = token_data.get("open_id") or token_data.get("seller_id", "")
+    open_id = token_data.get("open_id")
 
-    now = int(datetime.now(timezone.utc).timestamp())
-    access_expires_at = now + int(token_data.get("access_token_expire_in", 3600))
+    # now = int(datetime.now(timezone.utc).timestamp())
+    access_expires_at = int(token_data.get("access_token_expire_in"))
     refresh_expires_at = (
-        now + int(token_data["refresh_token_expire_in"])
+        int(token_data["refresh_token_expire_in"])
         if token_data.get("refresh_token_expire_in")
         else None
     )

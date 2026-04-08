@@ -1,10 +1,8 @@
-import time
-import hmac
-import hashlib
-import json
-from urllib.parse import urlparse
-
-
+import hmac  
+import hashlib  
+from urllib.parse import urlparse  
+import json  
+  
 def generate_sign(request_option, app_secret):  
     """  
     Generate HMAC-SHA256 signature  
