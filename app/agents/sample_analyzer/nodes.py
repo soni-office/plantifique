@@ -11,7 +11,7 @@ from app.agents.sample_analyzer.prompts import CREATOR_EVALUATION_PROMPT
 from app.core.config import settings
 from app.services.tiktok.creator_service import TikTokCreatorService
 from app.services.tiktok.product_service import TikTokProductService
-from app.core.config import settings
+from app.cache import cache, keys, ttl
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,15 @@ class ScoreResult(BaseModel):
     reasoning: str = Field(description="Brief explanation of the score")
 
 def fetch_data_node(state: SREvaluationState) -> dict:
-    """Fetch sample from DB, then resolve tier + thresholds via DB config."""
+    """
+    Phase 0: fetch sample from DB, resolve tier, and — for any tier that requires
+    threshold checks — fetch the rich creator detail from TikTok immediately so
+    Phase 1 (validation_node) works with real, up-to-date metrics.
+
+    post_rate is extracted from the rich creator detail as:
+        raw_post_rate / 100  → actual percentage
+    (TikTok stores post_rate as a raw integer, e.g. 7200 → 72 %)
+    """
     sample_id = state["sample_request_id"]
 
     sample = fetch_sample_from_db(sample_id)
@@ -38,34 +46,98 @@ def fetch_data_node(state: SREvaluationState) -> dict:
     product_id = product.get("id", "")
     product_title = product.get("title", "")
     org_id = sample.get("org_id", "")
+    creator_open_id = creator.get("creator_open_id", "")
 
     tier, thresholds = resolve_tier(org_id=org_id, username=username, product_id=product_id)
 
+    # Fetch rich creator detail for any tier that runs threshold checks.
+    # TIER_1 / TIER_2 skip validation entirely so no need to fetch there.
+    rich_creator_data = {}
+    post_rate = 0.0
+    access_token = state.get("access_token")
+    shop_cipher_val = state.get("shop_cipher")
+
+    if tier in ("TIER_3", "TIER_4", "TIER_5") and access_token and creator_open_id:
+        res_c = cache.cache_or_fetch(
+            keys.creator_detail(org_id, creator_open_id),
+            ttl.CREATOR_DETAIL,
+            lambda: TikTokCreatorService.get_creator_detail(
+                access_token, shop_cipher_val, creator_open_id
+            ),
+        )
+        if res_c and isinstance(res_c, dict) and "data" in res_c:
+            rich_creator_data = res_c.get("data", {}).get("creator", {})
+            # TikTok returns post_rate as a raw integer (e.g. 7200); divide by 100 → 72 %
+            raw_pr = rich_creator_data.get("post_rate") or 0
+            post_rate = float(raw_pr) / 100
+            logger.info(
+                "Rich creator detail fetched creator_open_id=%s post_rate_raw=%s post_rate_pct=%.2f",
+                creator_open_id, raw_pr, post_rate,
+            )
+        else:
+            logger.warning(
+                "Could not fetch rich creator detail for %s — threshold check will use sample data",
+                creator_open_id,
+            )
+
     return {
+        "org_id": org_id,
         "tier": tier,
         "creator_data": creator,
+        "rich_creator_data": rich_creator_data,
         "product_data": product,
         "product_title": product_title,
         "thresholds": thresholds,
-        "post_rate": float(creator.get("fulfillment_percentage", 0)),
+        "post_rate": post_rate,
     }
+
+def _extract_creator_metrics(creator: dict) -> tuple[float, int, int, int]:
+    """
+    Extract the four metric values from a creator dict.
+    Handles both the rich creator detail structure and the flat sample creator structure.
+
+    Returns: (gmv_30d, follower_count, content_count, ec_video_views)
+    """
+    # GMV: rich detail may return gmv_30d or gmv, both as {"amount": "...", "currency": "..."}
+    gmv_obj = creator.get("gmv_30d") or creator.get("gmv") or {}
+    if isinstance(gmv_obj, dict):
+        gmv = float(gmv_obj.get("amount") or 0)
+    else:
+        gmv = float(gmv_obj or 0)
+
+    followers = int(creator.get("follower_count") or 0)
+
+    # Content count: try rich field first, fall back to flat field
+    content_count = int(
+        creator.get("content_count_30d")
+        or creator.get("content_count")
+        or 0
+    )
+
+    # EC video views: try plural then singular (API inconsistency)
+    ec_video_views = int(
+        creator.get("ec_video_views")
+        or creator.get("ec_video_view")
+        or 0
+    )
+
+    return gmv, followers, content_count, ec_video_views
+
 
 def _check_thresholds(creator: dict, thresholds: dict, post_rate: float) -> tuple[bool, str]:
     """
-    Apply threshold checks. Any threshold key set to None is skipped.
+    Apply threshold checks against the creator dict (preferably rich creator detail).
+    Any threshold key set to None is skipped.
     Returns (passed: bool, reason: str).
     """
-    followers = creator.get("follower_count", 0)
-    gmv = float(creator.get("gmv", {}).get("amount", 0))
-    content_count = creator.get("content_count", 0)
-    ec_video_views = creator.get("ec_video_view", 0)
+    gmv, followers, content_count, ec_video_views = _extract_creator_metrics(creator)
 
     checks = [
-        ("min_last_30_days_gmv",  gmv,           f"GMV ${gmv:,.2f}",                    "needs ${val:,.2f}"),
-        ("min_follower_count",    followers,      f"Followers {followers:,}",             "needs {val:,}"),
-        ("min_post_rate",         post_rate,      f"Post rate {post_rate}%",              "needs {val}%"),
-        ("min_content_count",     content_count,  f"Content count {content_count}",       "needs {val}"),
-        ("min_ec_video_views",    ec_video_views, f"EC video views {ec_video_views:,}",   "needs {val:,}"),
+        ("min_last_30_days_gmv",  gmv,            f"GMV ${gmv:,.2f}",                    "needs ${val:,.2f}"),
+        ("min_follower_count",    followers,       f"Followers {followers:,}",             "needs {val:,}"),
+        ("min_post_rate",         post_rate,       f"Post rate {post_rate:.1f}%",          "needs {val}%"),
+        ("min_content_count",     content_count,   f"Content count {content_count}",       "needs {val}"),
+        ("min_ec_video_views",    ec_video_views,  f"EC video views {ec_video_views:,}",   "needs {val:,}"),
     ]
 
     for key, actual, actual_label, need_template in checks:
@@ -83,23 +155,32 @@ def validation_node(state: SREvaluationState) -> dict:
     """
     Stage 1: Threshold validation.
 
+    Uses rich creator detail (fetched in fetch_data_node) for accurate metrics.
+    Falls back to the shallow sample creator data if the detail fetch failed.
+
     TIER_1 / TIER_2  → skip entirely (exception/retainer lists, internal processing)
     TIER_3 / TIER_4  → check per-product thresholds; fail → REJECT, pass → proceed to LLM
     TIER_5           → check global thresholds; fail or pass → FLAG_INTERNAL (no LLM)
     UNKNOWN          → FLAG_INTERNAL immediately
     """
-    creator = state.get("creator_data", {})
+    # Prefer the rich detail; fall back to shallow sample data
+    rich_creator = state.get("rich_creator_data") or {}
+    creator = rich_creator if rich_creator else (state.get("creator_data") or {})
+    using_rich = bool(rich_creator)
+
     thresholds = state.get("thresholds") or {}
     tier = state.get("tier", "UNKNOWN")
     post_rate = state.get("post_rate", 0.0)
 
+    gmv, followers, _, _ = _extract_creator_metrics(creator)
     logger.info(
-        "Validation tier=%s username=%s followers=%s gmv=%s post_rate=%s",
+        "Validation tier=%s username=%s followers=%s gmv=%.2f post_rate=%.1f%% using_rich_data=%s",
         tier,
-        creator.get("username"),
-        creator.get("follower_count"),
-        creator.get("gmv", {}).get("amount"),
+        (rich_creator or state.get("creator_data", {})).get("username"),
+        followers,
+        gmv,
         post_rate,
+        using_rich,
     )
 
     if tier in ("TIER_1", "TIER_2", "UNKNOWN"):
@@ -144,27 +225,37 @@ def llm_score_node(state: SREvaluationState) -> dict:
     access_token = state.get("access_token")
     shop_cipher = state.get("shop_cipher")
     
-    rich_creator_dict = {}
+    org_id = state.get("org_id", "")
+
+    # Creator detail was already fetched (and cached) in fetch_data_node — reuse it.
+    rich_creator_dict = state.get("rich_creator_data") or {}
     rich_product_dict = {}
 
     if access_token:
-        # 1. Fetch rich creator detail
-        if creator_open_id:
-            res_c = TikTokCreatorService.get_creator_detail(access_token, shop_cipher, creator_open_id)
+        # 1. Creator detail: only fetch if fetch_data_node couldn't get it
+        #    (e.g. TIER_1/2 skip it, or the API failed). Cache hit is instant anyway.
+        if not rich_creator_dict and creator_open_id:
+            res_c = cache.cache_or_fetch(
+                keys.creator_detail(org_id, creator_open_id),
+                ttl.CREATOR_DETAIL,
+                lambda: TikTokCreatorService.get_creator_detail(access_token, shop_cipher, creator_open_id),
+            )
             if res_c and isinstance(res_c, dict) and "data" in res_c:
-                print(f"[DEBUG] Successfully fetched rich creator detail for {creator_open_id}")
                 rich_creator_dict = res_c.get("data", {}).get("creator", {})
             else:
-                print(f"[DEBUG] Failed to fetch rich details for {creator_open_id}")
+                logger.warning("Failed to fetch rich creator detail for %s", creator_open_id)
 
-        # 2. Fetch rich product detail
+        # 2. Fetch rich product detail (cached)
         if product_id:
-            res_p = TikTokProductService.get_product_by_id(access_token, shop_cipher, product_id)
+            res_p = cache.cache_or_fetch(
+                keys.product_detail(org_id, product_id),
+                ttl.PRODUCT_DETAIL,
+                lambda: TikTokProductService.get_product_by_id(access_token, shop_cipher, product_id),
+            )
             if res_p and isinstance(res_p, dict) and "data" in res_p:
-                print(f"[DEBUG] Successfully fetched rich product detail for {product_id}")
                 rich_product_dict = res_p.get("data", {})
             else:
-                print(f"[DEBUG] Failed to fetch rich product details for {product_id}")
+                logger.warning("Failed to fetch rich product detail for %s", product_id)
         
     # --- RAG context retrieval (optional) ---
     rag_context_section = ""

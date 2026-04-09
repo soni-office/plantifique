@@ -10,6 +10,7 @@ from app.repository.sample_analysis_repository import SampleAnalysisRepository
 from app.repository.creator_repository import CreatorRepository
 from app.repository.product_repository import ProductRepository
 from app.utils.shop_ciphers import shop_cipher
+from app.cache import cache, keys, ttl
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ def _get_token_and_cipher(org_id: str) -> tuple[str, str]:
     return access_token, cipher
 
 
-# ── List (from DB, paginated) ─────────────────────────────────────────────
+# ── List (from DB, paginated + cached) ───────────────────────────────────
 
 @router.get("")
 async def list_sample_requests(
@@ -32,19 +33,29 @@ async def list_sample_requests(
 ):
     """
     Return a page of sample requests from Firestore (previously synced from TikTok).
-    Use cursor=<next_cursor from previous response> to fetch subsequent pages.
+    Results are cached per (org, page_size, cursor). The entire org's sample cache
+    is wiped on every successful sync so the list is always fresh after a sync.
     """
-    repo = SampleAnalysisRepository()
-    items, next_cursor = repo.list_for_org(
-        org_id=user["org_id"],
-        page_size=page_size,
-        start_after_id=cursor or None,
+    org_id = user["org_id"]
+
+    def _fetch():
+        repo = SampleAnalysisRepository()
+        items, next_cursor = repo.list_for_org(
+            org_id=org_id,
+            page_size=page_size,
+            start_after_id=cursor or None,
+        )
+        return {
+            "items": items,
+            "next_cursor": next_cursor,
+            "has_more": next_cursor is not None,
+        }
+
+    return cache.cache_or_fetch(
+        keys.sample_list(org_id, page_size, cursor),
+        ttl.SAMPLE_LIST,
+        _fetch,
     )
-    return {
-        "items": items,
-        "next_cursor": next_cursor,
-        "has_more": next_cursor is not None,
-    }
 
 
 # ── Sync from TikTok into DB ──────────────────────────────────────────────
@@ -56,17 +67,19 @@ async def sync_sample_requests(
     """
     Pull all PENDING sample requests from TikTok and upsert them into Firestore.
     Safe to re-run — existing analysis data is never overwritten.
-    Returns counts of new vs already-known records.
+    On completion, invalidates the entire org's sample list cache so the next
+    GET immediately reflects the updated DB state.
     """
-    logger.info("Sync started org=%s by=%s", user["org_id"], user["id"])
-    access_token, cipher = _get_token_and_cipher(user["org_id"])
-    
+    org_id = user["org_id"]
+    logger.info("Sync started org=%s by=%s", org_id, user["id"])
+    access_token, cipher = _get_token_and_cipher(org_id)
+
     repo = SampleAnalysisRepository()
     page_token: str | None = None
     new_count = 0
     updated_count = 0
     page_num = 0
-    tiktok_ids_seen: set[str] = set()   # every PENDING ID returned by TikTok this run
+    tiktok_ids_seen: set[str] = set()
 
     # ── Forward pass: upsert everything TikTok says is PENDING ───────────
     while True:
@@ -86,7 +99,7 @@ async def sync_sample_requests(
         batch = result.get("data", {}).get("sample_applications") or []
         for app in batch:
             tiktok_ids_seen.add(app["id"])
-            is_new = repo.upsert_from_tiktok(org_id=user["org_id"], application=app)
+            is_new = repo.upsert_from_tiktok(org_id=org_id, application=app)
             if is_new:
                 new_count += 1
             else:
@@ -100,15 +113,16 @@ async def sync_sample_requests(
         page_token = next_token
 
     # ── Backward pass: mark anything no longer PENDING on TikTok ─────────
-    # IDs in DB with tiktok_status=PENDING but absent from today's TikTok response
-    # were approved / rejected / withdrawn on the shop side.
-    db_pending_ids = repo.get_all_tiktok_pending_ids(user["org_id"])
+    db_pending_ids = repo.get_all_tiktok_pending_ids(org_id)
     stale_ids = db_pending_ids - tiktok_ids_seen
-    processed_count = repo.mark_processed_on_shop(stale_ids, ttl_days=3)
+    processed_count = repo.mark_processed_on_shop(stale_ids, ttl_days=1)
 
+    # ── Invalidate the entire sample list cache for this org ──────────────
+    # All paginated pages are wiped so the next GET is served fresh from DB.
+    removed = cache.invalidate_prefix(keys.sample_list_prefix(org_id))
     logger.info(
-        "Sync complete org=%s new=%s updated=%s processed=%s pages=%s",
-        user["org_id"], new_count, updated_count, processed_count, page_num,
+        "Sync complete org=%s new=%s updated=%s processed=%s pages=%s cache_evicted=%s",
+        org_id, new_count, updated_count, processed_count, page_num, removed,
     )
     return {
         "status": "ok",
@@ -130,12 +144,13 @@ async def evaluate_sample_request(
     """Manually trigger AI analysis for a sample. Saves result to Firestore."""
     from app.agents.sample_analyzer.runner import run_sr_agent
 
-    logger.info("Evaluating sample_id=%s for user=%s org=%s", sample_id, user["id"], user["org_id"])
+    org_id = user["org_id"]
+    logger.info("Evaluating sample_id=%s for user=%s org=%s", sample_id, user["id"], org_id)
 
     analysis_repo = SampleAnalysisRepository()
 
     try:
-        access_token, cipher = _get_token_and_cipher(user["org_id"])
+        access_token, cipher = _get_token_and_cipher(org_id)
         result = run_sr_agent(
             sample_request_id=sample_id,
             access_token=access_token,
@@ -145,7 +160,7 @@ async def evaluate_sample_request(
 
         analysis_repo.save_analysis_result(
             sample_id=sample_id,
-            org_id=user["org_id"],
+            org_id=org_id,
             result=result,
         )
 
@@ -158,14 +173,20 @@ async def evaluate_sample_request(
                 or result["rich_creator_detail"].get("id")
             )
             if creator_id:
-                creator_repo.upsert(creator_id=creator_id, org_id=user["org_id"], data=result["rich_creator_detail"])
+                creator_repo.upsert(creator_id=creator_id, org_id=org_id, data=result["rich_creator_detail"])
 
         if result.get("rich_product_detail") and result["rich_product_detail"].get("id"):
             product_repo.upsert(
                 product_id=result["rich_product_detail"]["id"],
-                org_id=user["org_id"],
+                org_id=org_id,
                 data=result["rich_product_detail"],
             )
+
+        # Invalidate cached item state and the list so analysis results appear immediately
+        cache.invalidate(
+            keys.sample_item(org_id, sample_id),
+        )
+        cache.invalidate_prefix(keys.sample_list_prefix(org_id))
 
         return {"status": "success", "data": result}
 
@@ -191,6 +212,8 @@ async def update_review_status(
     try:
         repo = SampleAnalysisRepository()
         repo.set_review_status(sample_id, body.status)
+        # Invalidate item cache so the updated status is visible immediately
+        cache.invalidate(keys.sample_item(user["org_id"], sample_id))
         logger.info("Review status updated sample_id=%s status=%s by=%s", sample_id, body.status, user["id"])
         return {"status": "success", "sample_id": sample_id, "review_status": body.status}
     except ValueError as e:
@@ -214,6 +237,8 @@ async def submit_feedback(
     try:
         repo = SampleAnalysisRepository()
         record = repo.set_feedback(sample_id, body.rating, body.comment)
+        # Invalidate so feedback shows up immediately on next fetch
+        cache.invalidate(keys.sample_item(user["org_id"], sample_id))
         return {"status": "success", "sample_id": sample_id, "feedback": record}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -224,10 +249,19 @@ async def get_review_state(
     sample_id: str,
     user=Depends(get_current_user),
 ):
-    """Fetch the current review status and feedback for a sample."""
-    repo = SampleAnalysisRepository()
-    return {
-        "sample_id": sample_id,
-        "review_status": repo.get_review_status(sample_id),
-        "feedback": repo.get_feedback(sample_id),
-    }
+    """Fetch the current review status and feedback for a sample. Cached per item."""
+    org_id = user["org_id"]
+
+    def _fetch():
+        repo = SampleAnalysisRepository()
+        return {
+            "sample_id": sample_id,
+            "review_status": repo.get_review_status(sample_id),
+            "feedback": repo.get_feedback(sample_id),
+        }
+
+    return cache.cache_or_fetch(
+        keys.sample_item(org_id, sample_id),
+        ttl.SAMPLE_ITEM,
+        _fetch,
+    )

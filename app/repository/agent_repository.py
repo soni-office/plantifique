@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from google.cloud.firestore import FieldFilter
 from app.db.firestore import db
 
 
@@ -9,7 +10,7 @@ class AgentVersionRepository:
         self.col = db.collection("agent_versions")
 
     def get_active(self) -> dict | None:
-        docs = self.col.where("is_active", "==", True).limit(1).stream()
+        docs = self.col.where(filter=FieldFilter("is_active", "==", True)).limit(1).stream()
         for doc in docs:
             data = doc.to_dict()
             data["id"] = doc.id

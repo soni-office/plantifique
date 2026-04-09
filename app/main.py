@@ -10,7 +10,13 @@ from app.api import internal
 from app.api import org
 from app.api import tier_config
 from app.api.auth_tiktokshop import router as tiktok_auth_router
+import logging
 
+# This configures all your child loggers at once
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(name)s - %(message)s"
+)
 app = FastAPI()
 
 origins = settings.allowed_origins

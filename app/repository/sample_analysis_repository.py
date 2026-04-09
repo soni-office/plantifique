@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from google.cloud.firestore import FieldFilter
 from google.cloud.firestore_v1 import Query
 from app.db.firestore import db
 
@@ -21,8 +22,8 @@ class SampleAnalysisRepository:
     def get_pending_for_org(self, org_id: str) -> list[dict]:
         docs = (
             self.col
-            .where("org_id", "==", org_id)
-            .where("analysis_status", "==", "QUEUED")
+            .where(filter=FieldFilter("org_id", "==", org_id))
+            .where(filter=FieldFilter("analysis_status", "==", "QUEUED"))
             .stream()
         )
         return [{**doc.to_dict(), "id": doc.id} for doc in docs]
@@ -94,7 +95,7 @@ class SampleAnalysisRepository:
         """
         query = (
             self.col
-            .where("org_id", "==", org_id)
+            .where(filter=FieldFilter("org_id", "==", org_id))
             .order_by("first_seen_at", direction=Query.DESCENDING)
             .limit(page_size + 1)
         )
@@ -121,13 +122,13 @@ class SampleAnalysisRepository:
         """
         docs = (
             self.col
-            .where("org_id", "==", org_id)
+            .where(filter=FieldFilter("org_id", "==", org_id))
             .select(["tiktok_status"])
             .stream()
         )
         return {doc.id for doc in docs if doc.to_dict().get("tiktok_status") == "PENDING"}
 
-    def mark_processed_on_shop(self, sample_ids: set[str], ttl_days: int = 3) -> int:
+    def mark_processed_on_shop(self, sample_ids: set[str], ttl_days: int = 1) -> int:
         """
         Mark a set of sample IDs as no longer PENDING on TikTok Shop.
         Sets:

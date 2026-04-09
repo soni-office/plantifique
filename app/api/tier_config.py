@@ -16,6 +16,7 @@ from app.services.tiktok.product_service import TikTokProductService
 from app.services.tiktok.creator_service import TikTokCreatorService
 from app.services.tiktok.token_service import TokenService
 from app.utils.shop_ciphers import shop_cipher
+from app.cache import cache, keys, ttl
 
 router = APIRouter(prefix="/config/tier", tags=["Tier Config"])
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ _admin = require_role("ORG_ADMIN", "SUPER_ADMIN")
 
 def _tokens(org_id: str) -> tuple[str, str]:
     at = TokenService().get_valid_access_token(org_id)
+    breakpoint()
     cipher = shop_cipher(org_id)["data"]["shops"][0]["cipher"]
     return at, cipher
 
@@ -61,12 +63,18 @@ async def add_creator(body: AddCreatorBody, caller=Depends(_admin)):
     creator_open_id = ""
     avatar_url = ""
     try:
-        at, cipher = _tokens(caller["org_id"])
-        res = TikTokCreatorService.search(
-            access_token=at,
-            shop_cipher=cipher,
-            keyword=body.username,
-            page_size=12,
+        org_id = caller["org_id"]
+        at, cipher = _tokens(org_id)
+
+        res = cache.cache_or_fetch(
+            keys.creator_search(org_id, body.username, 12),
+            ttl.CREATOR_SEARCH,
+            lambda: TikTokCreatorService.search(
+                access_token=at,
+                shop_cipher=cipher,
+                keyword=body.username,
+                page_size=12,
+            ),
         )
         creators = res.get("data", {}).get("creators") or []
         # Find exact username match (case-insensitive)
@@ -165,17 +173,26 @@ async def list_shop_products(
 ):
     """
     Fetch live shop products from TikTok for the product-picker UI.
-    No Firestore — always fresh from the API.
-    Redis caching can be layered here later.
+    Cached per org + page_size for CACHE_TTL_SHOP_PRODUCTS seconds.
     """
-    at, cipher = _tokens(caller["org_id"])
-    res = TikTokProductService.search(
-        access_token=at,
-        shop_cipher=cipher,
-        page_size=page_size,
+    org_id = caller["org_id"]
+
+    def _fetch():
+        at, cipher = _tokens(org_id)
+        res = TikTokProductService.search(
+            access_token=at,
+            shop_cipher=cipher,
+            page_size=page_size,
+        )
+        raw = res.get("data", {}).get("products") or []
+        return [_shape_product(p) for p in raw]
+
+    products = cache.cache_or_fetch(
+        keys.shop_products(org_id, page_size),
+        ttl.SHOP_PRODUCTS,
+        _fetch,
     )
-    raw = res.get("data", {}).get("products") or []
-    return {"products": [_shape_product(p) for p in raw]}
+    return {"products": products}
 
 
 @router.get("/products")
@@ -190,11 +207,17 @@ async def add_product(body: AddProductBody, caller=Depends(_admin)):
     Add a product to Tier 3 or 4.
     Fetches live product detail from TikTok to resolve title + image.
     """
-    at, cipher = _tokens(caller["org_id"])
-    res = TikTokProductService.get_product_by_id(
-        access_token=at,
-        shop_cipher=cipher,
-        product_id=body.product_id,
+    org_id = caller["org_id"]
+    at, cipher = _tokens(org_id)
+
+    res = cache.cache_or_fetch(
+        keys.product_detail(org_id, body.product_id),
+        ttl.PRODUCT_DETAIL,
+        lambda: TikTokProductService.get_product_by_id(
+            access_token=at,
+            shop_cipher=cipher,
+            product_id=body.product_id,
+        ),
     )
     product = res.get("data") or {}
     if not product:

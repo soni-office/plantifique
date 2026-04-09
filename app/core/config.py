@@ -111,7 +111,11 @@ class Settings:
     # -------------------------------------------------------------------------
     # Vertex AI
     # -------------------------------------------------------------------------
-    vertex_model: str = os.getenv('VERTEX_MODEL', 'gemini-2.0-flash-001')
+    vertex_model: str = os.getenv('VERTEX_MODEL', 'gemini-2.5-flash')
+
+    # Redis credentials
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    CACHE_DEFAULT_TTL: int = int(os.getenv("CACHE_DEFAULT_TTL", 300))
 
     # -------------------------------------------------------------------------
     # Computed properties

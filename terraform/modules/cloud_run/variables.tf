@@ -66,7 +66,7 @@ variable "want_to_use_rag" {
 }
 
 variable "vertex_model" {
-  description = "Vertex AI model name (e.g. gemini-2.0-flash-001)"
+  description = "Vertex AI model name (e.g. gemini-2.5-flash)"
   type        = string
   default     = "gemini-2.5-flash"
 }

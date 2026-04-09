@@ -7,17 +7,19 @@ class SREvaluationState(TypedDict):
 
     # -- Inputs --
     sample_request_id: str
-    threshold: int  
+    threshold: int
     access_token: Optional[str]
     shop_cipher: Optional[str]
 
     # -- Populated by fetch_data_node --
+    org_id: Optional[str]
     tier: Optional[str]
-    creator_data: Optional[Dict[str, Any]]
+    creator_data: Optional[Dict[str, Any]]        # shallow data from sample DB record
+    rich_creator_data: Optional[Dict[str, Any]]   # full detail from TikTok creator detail API
     product_data: Optional[Dict[str, Any]]
     product_title: Optional[str]
     thresholds: Optional[Dict[str, Any]]  # min_gmv / min_followers / min_post_rate for the product
-    post_rate: Optional[float]            # Creator's TikTok post rate (%)
+    post_rate: Optional[float]            # Creator's real post rate % (rich_creator_data.post_rate / 100)
 
     # -- Populated by validation_node (Stage 1) --
     filters_passed: Optional[bool]
