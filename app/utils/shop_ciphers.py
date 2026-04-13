@@ -2,7 +2,7 @@ import requests
 import time
 from urllib.parse import urlencode
 from app.core.config import settings
-from app.services.tiktok.token_service import TokenService
+from app.services.token_service import TokenService
 from app.utils.api_sign import generate_sign
 from app.cache import cache, keys, ttl
 

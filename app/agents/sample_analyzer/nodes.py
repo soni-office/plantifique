@@ -9,8 +9,8 @@ from app.agents.tools import fetch_sample_from_db, resolve_tier
 from app.agents.sample_analyzer.state import SREvaluationState
 from app.agents.sample_analyzer.prompts import CREATOR_EVALUATION_PROMPT
 from app.core.config import settings
-from app.services.tiktok.creator_service import TikTokCreatorService
-from app.services.tiktok.product_service import TikTokProductService
+from app.clients.tiktok.creator_client import TikTokCreatorClient
+from app.clients.tiktok.product_client import TikTokProductClient
 from app.cache import cache, keys, ttl
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def fetch_data_node(state: SREvaluationState) -> dict:
         res_c = cache.cache_or_fetch(
             keys.creator_detail(org_id, creator_open_id),
             ttl.CREATOR_DETAIL,
-            lambda: TikTokCreatorService.get_creator_detail(
+            lambda: TikTokCreatorClient.get_detail(
                 access_token, shop_cipher_val, creator_open_id
             ),
         )
@@ -238,7 +238,7 @@ def llm_score_node(state: SREvaluationState) -> dict:
             res_c = cache.cache_or_fetch(
                 keys.creator_detail(org_id, creator_open_id),
                 ttl.CREATOR_DETAIL,
-                lambda: TikTokCreatorService.get_creator_detail(access_token, shop_cipher, creator_open_id),
+                lambda: TikTokCreatorClient.get_detail(access_token, shop_cipher, creator_open_id),
             )
             if res_c and isinstance(res_c, dict) and "data" in res_c:
                 rich_creator_dict = res_c.get("data", {}).get("creator", {})
@@ -250,7 +250,7 @@ def llm_score_node(state: SREvaluationState) -> dict:
             res_p = cache.cache_or_fetch(
                 keys.product_detail(org_id, product_id),
                 ttl.PRODUCT_DETAIL,
-                lambda: TikTokProductService.get_product_by_id(access_token, shop_cipher, product_id),
+                lambda: TikTokProductClient.get_by_id(access_token, shop_cipher, product_id),
             )
             if res_p and isinstance(res_p, dict) and "data" in res_p:
                 rich_product_dict = res_p.get("data", {})

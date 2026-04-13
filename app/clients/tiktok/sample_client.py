@@ -1,9 +1,12 @@
-from app.services.tiktok.client import TikTokClient
+"""
+Raw TikTok sample application API calls.
+"""
+from app.clients.tiktok.base import TikTokClient
 
-SAMPLE_PATH = "/affiliate_seller/202508/sample_applications/search"
+_SAMPLE_PATH = "/affiliate_seller/202508/sample_applications/search"
 
 
-class TikTokSampleService:
+class TikTokSampleClient:
 
     @staticmethod
     def search(
@@ -14,17 +17,16 @@ class TikTokSampleService:
         status: str = "PENDING",
     ) -> dict:
         """
-        Fetch one page of sample applications from TikTok.
-        Returns the raw TikTok response dict:
+        Fetch one page of sample applications.
+        Returns raw TikTok response:
           { code, data: { sample_applications: [...], next_page_token: "..." } }
         """
-        qs = {"page_size": page_size}
         body: dict = {"status": status}
+        qs: dict = {"page_size": page_size}
         if page_token:
-            body["page_token"] = page_token
-
+            qs["page_token"] = page_token
         return TikTokClient.post(
-            path=SAMPLE_PATH,
+            path=_SAMPLE_PATH,
             access_token=access_token,
             shop_cipher=shop_cipher,
             qs=qs,

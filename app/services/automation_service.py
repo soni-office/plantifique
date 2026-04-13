@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from app.services.tiktok.token_service import TokenService
-from app.services.tiktok.sample_service import TikTokSampleService
+from app.services.token_service import TokenService
+from app.clients.tiktok.sample_client import TikTokSampleClient
 from app.repository.sample_analysis_repository import SampleAnalysisRepository
 from app.repository.user_repository import UserRepository
 from app.utils.shop_ciphers import shop_cipher
@@ -42,7 +42,7 @@ class AutomationService:
             return {"processed": 0, "skipped": 0, "failed": 0, "error": "No shop cipher"}
 
         try:
-            tiktok_response = TikTokSampleService.search(
+            tiktok_response = TikTokSampleClient.search(
                 access_token=access_token,
                 shop_cipher=cipher,
                 page_size=50,
@@ -60,10 +60,10 @@ class AutomationService:
             if not sample_id:
                 continue
             existing = self.analysis_repo.get(sample_id)
-            if existing and existing.get("analysis_status") in ("COMPLETED", "PROCESSING"):
+            if existing and existing.get("analysis_status") in ("COMPLETED", "QUEUED"):
                 skipped += 1
                 continue
-            self.analysis_repo.queue(sample_id=sample_id, org_id=self.org_id)
+            self.analysis_repo.mark_queued(sample_id=sample_id, org_id=self.org_id)
             to_process.append(sample_id)
 
         if not to_process:

@@ -1,6 +1,11 @@
+"""
+Low-level TikTok Shop API HTTP client.
+Handles request signing and transport only — no business logic.
+"""
 import time
 import requests
 from urllib.parse import urlencode
+
 from app.core.config import settings
 from app.utils.api_sign import generate_sign
 
@@ -8,25 +13,19 @@ from app.utils.api_sign import generate_sign
 class TikTokClient:
 
     @staticmethod
-    def post(path: str, access_token: str, shop_cipher: str, qs: dict, body: dict):
+    def post(path: str, access_token: str, shop_cipher: str, qs: dict, body: dict) -> dict:
         uri = f"{settings.base_url}{path}"
         headers = {
             "content-type": "application/json",
             "x-tts-access-token": access_token,
         }
-
         qs.update({
             "app_key": settings.app_key,
             "timestamp": int(time.time()),
             "page_size": qs.get("page_size", 20),
             "shop_cipher": shop_cipher,
         })
-        request_option = {
-            "uri": uri,
-            "qs": qs,
-            "headers": headers,
-            "body": body,
-        }
+        request_option = {"uri": uri, "qs": qs, "headers": headers, "body": body}
         sign = generate_sign(request_option, settings.app_secret)
         qs["sign"] = sign
         final_url = f"{uri}?{urlencode(dict(sorted(qs.items())))}"
@@ -35,29 +34,20 @@ class TikTokClient:
         return response.json()
 
     @staticmethod
-    def get(path: str, access_token: str, shop_cipher: str, qs: dict):
+    def get(path: str, access_token: str, shop_cipher: str, qs: dict) -> dict:
         uri = f"{settings.base_url}{path}"
         headers = {
             "content-type": "application/json",
             "x-tts-access-token": access_token,
         }
-
         qs.update({
             "app_key": settings.app_key,
             "timestamp": int(time.time()),
             "shop_cipher": shop_cipher,
         })
-
-        request_option = {
-            "uri": path,
-            "qs": qs,
-            "headers": headers,
-            "body": {},
-        }
-
+        request_option = {"uri": path, "qs": qs, "headers": headers, "body": {}}
         sign = generate_sign(request_option, settings.app_secret)
         qs["sign"] = sign
-
         final_url = f"{uri}?{urlencode(dict(sorted(qs.items())))}"
         response = requests.get(final_url, headers=headers)
         response.raise_for_status()
