@@ -14,7 +14,6 @@ from app.core.config import settings
 
 class PlaylistSelection(BaseModel):
     selected_mix_id: str | None = Field(description="The ID of the playlist most relevant to the product, or None if none are relevant.")
-
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.tikapi.io"
@@ -92,8 +91,8 @@ class TikApiService:
             resp = requests.get(url, headers=_headers(), params={"secUid": sec_uid}, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                # Most structures return a cursorList or mixList
-                return data.get("cursorList") or data.get("mixList") or data.get("mixInfo") or []
+                # TikAPI typically returns playList, mixList, or cursorList
+                return data.get("playList") or data.get("cursorList") or data.get("mixList") or data.get("mixInfo") or []
         except requests.RequestException as e:
             logger.warning("[TikAPI] get_user_playlists failed: %s", e)
         return []
@@ -104,15 +103,16 @@ class TikApiService:
         if not settings.tikapi_key: return []
         try:
             url = f"{_BASE_URL}/public/playlist/items"
-            resp = requests.get(url, headers=_headers(), params={"id": mix_id, "count": limit}, timeout=10)
+            resp = requests.get(url, headers=_headers(), params={"playlist_id": mix_id, "count": limit}, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 raw_videos = data.get("itemList") or []
                 return [TikApiService._sanitise_video(v, "") for v in raw_videos[:limit]]
+            else:
+                logger.warning("[TikAPI] get_playlist_videos failed with %s: %s", resp.status_code, resp.text)
         except requests.RequestException as e:
             logger.warning("[TikAPI] get_playlist_videos failed for mix_id=%s: %s", mix_id, e)
         return []
-
     @staticmethod
     def get_video_comments(video_id: str, limit: int = _COMMENT_LIMIT) -> list[str]:
         """
@@ -176,7 +176,6 @@ class TikApiService:
         Helper: given a @username, return their top videos, dynamically scoped to relevant 
         playlists if a matching niche is found, enriched with top audience comments.
 
-
         Comment fetching is done only for the first 5 videos to limit
         API calls (5 videos × 1 API call = 5 total comment requests).
         """
@@ -207,14 +206,16 @@ Select the mix_id of the playlist that conceptually matches this product categor
 """
                 try:
                     selection = llm.invoke(comp_prompt)
-                    mix_id = selection.selected_mix_id
                     
-                    if mix_id:
-                        selected_name = next((p.get("mixName") for p in playlists if p.get("mixId") == mix_id), "Unknown")
-                        print(f"[TikAPI] AI intelligently selected playlist '{selected_name}' for product '{product_title}'. Fetching tailored videos...")
+                    if selection and selection.selected_mix_id:
+                        mix_id = selection.selected_mix_id
+                        selected_name = next((p.get("mixName") or p.get("name") for p in playlists if p.get("mixId") == mix_id or p.get("id") == mix_id), "Unknown")
+                        print(f"[TikAPI] 🧠 AI selected playlist '{selected_name}' for product '{product_title}'. Fetching tailored videos...")
                         videos = cls.get_playlist_videos(mix_id, limit=10)
+                        if not videos:
+                            print(f"[TikAPI] ⚠️ Warning: selected playlist '{selected_name}' returned 0 videos!")
                 except Exception as e:
-                    logger.warning("[TikAPI] LLM Playlist routing failed: %s", e)
+                    print(f"[TikAPI] 🚨 LLM Playlist routing failed: {e}")
 
         # Fallback to standard chronology if no relevant playlist found or API fails
         if not videos:
