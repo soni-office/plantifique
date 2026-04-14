@@ -59,8 +59,11 @@ class SampleAnalysisRepository:
             "org_id": org_id,
             "tiktok_sample_id": sample_id,
             "analysis_status": "COMPLETED",
-            "analysis_score": result.get("llm_score"),
-            "analysis_reasoning": result.get("llm_reasoning"),
+            "profile_score": result.get("profile_score"),
+            "profile_reasoning": result.get("profile_reasoning"),
+            "aesthetic_score": result.get("aesthetic_score"),
+            "aesthetic_reasoning": result.get("aesthetic_reasoning"),
+            "top_3_video_urls": result.get("top_3_video_urls") or [],
             "final_decision": result.get("final_decision"),
             "tier": result.get("tier"),
             "filters_passed": result.get("filters_passed"),
@@ -69,6 +72,7 @@ class SampleAnalysisRepository:
             "processed_at": now,
             "updated_at": now,
         }, merge=True)
+
 
     def mark_failed(self, sample_id: str, error: str) -> None:
         self.col.document(sample_id).set({
