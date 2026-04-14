@@ -8,6 +8,7 @@ from app.agents.sample_analyzer.nodes import (
     flag_internal_node,
     commerce_evaluation_node,
     aesthetic_evaluation_node,
+    visual_evaluation_node,
     decision_node,
 )
 
@@ -21,6 +22,7 @@ def build_graph() -> StateGraph:
     graph.add_node("commerce_evaluation", commerce_evaluation_node)
     graph.add_node("fetch_aesthetic_data", fetch_aesthetic_data_node)
     graph.add_node("aesthetic_evaluation", aesthetic_evaluation_node)
+    graph.add_node("visual_evaluation", visual_evaluation_node)
     graph.add_node("decision", decision_node)
 
     graph.set_entry_point("fetch_data")
@@ -41,7 +43,8 @@ def build_graph() -> StateGraph:
 
     graph.add_edge("commerce_evaluation", "fetch_aesthetic_data")
     graph.add_edge("fetch_aesthetic_data", "aesthetic_evaluation")
-    graph.add_edge("aesthetic_evaluation", "decision")
+    graph.add_edge("aesthetic_evaluation", "visual_evaluation")
+    graph.add_edge("visual_evaluation", "decision")
     
     graph.add_edge("decision", END)
 

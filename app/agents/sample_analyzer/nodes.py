@@ -16,6 +16,7 @@ from app.clients.tiktok.creator_client import TikTokCreatorClient
 from app.clients.tiktok.product_client import TikTokProductClient
 from app.cache import cache, keys, ttl
 from app.services.tikapi_service import tikapi_service
+from app.agents.phase4_analyzer import run_phase4_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +332,8 @@ def commerce_evaluation_node(state: SREvaluationState) -> dict:
             )
             if res_c and isinstance(res_c, dict) and "data" in res_c:
                 # The official API nests creator details inside data.creator
-                rich_creator_dict = res_c.get("data", {}).get("creator") or res_c.get("data", {})
+                data_obj = res_c.get("data")
+                rich_creator_dict = data_obj.get("creator") or data_obj
                 logger.info("[Phase 2] Fetched rich TikTok affiliate creator profile for creator_id=%s", creator_open_id)
             else:
                 logger.warning("[Phase 2] Failed to fetch TikTok affiliate creator profile for creator_id=%s", creator_open_id)
@@ -426,6 +428,56 @@ def aesthetic_evaluation_node(state: SREvaluationState) -> dict:
     }
 
 
+def visual_evaluation_node(state: SREvaluationState) -> dict:
+    """Stage 4: Deep Video Frame & Audio Analysis using yt-dlp & Gemini Flash."""
+    product_title = state.get("product_title", "")
+    creator = state.get("creator_data", {})
+    username = creator.get("username") or creator.get("handle") or creator.get("creator_name") or "Unknown"
+
+    videos = state.get("recent_videos") or []
+    top_video_urls = state.get("top_3_video_urls") or []
+
+    top_url_set = set(top_video_urls)
+    selected_videos = [
+        v for v in videos
+        if v.get("web_url") in top_url_set or v.get("play_url") in top_url_set
+    ]
+    if not selected_videos:
+        selected_videos = videos[:3]
+
+    video_ids = [v["video_id"] for v in selected_videos if v.get("video_id")]
+    web_urls = [v["web_url"] for v in selected_videos if v.get("web_url")]
+    play_url_fallbacks = [v["play_url"] for v in selected_videos if v.get("play_url")]
+
+    if not video_ids:
+        return {
+            "visual_score": None,
+            "visual_reasoning": "Skipped Phase 4: No valid videos found to analyze.",
+            "matched_patterns": [],
+            "missing_patterns": []
+        }
+
+    logger.info("[Phase 4] Starting visual analysis for %d videos", len(video_ids))
+    try:
+        phase4_result = run_phase4_analysis(
+            product_title=product_title,
+            creator_username=username,
+            video_ids=video_ids,
+            web_urls=web_urls,
+            play_url_fallbacks=play_url_fallbacks,
+        )
+    except Exception as e:
+        logger.error("[Phase 4] Failed frame analysis: %s", e)
+        phase4_result = {"visual_score": None, "reasoning": f"Analysis crashed: {e}"}
+
+    return {
+        "visual_score": phase4_result.get("visual_score"),
+        "visual_reasoning": phase4_result.get("reasoning"),
+        "matched_patterns": phase4_result.get("matched_patterns", []),
+        "missing_patterns": phase4_result.get("missing_patterns", [])
+    }
+
+
 def decision_node(state: SREvaluationState) -> dict:
     """Makes a final ACCEPT/REJECT decision based on Phase 2 AND Phase 3 outputs."""
     filters_passed = state.get("filters_passed", False)
@@ -457,6 +509,13 @@ def decision_node(state: SREvaluationState) -> dict:
     combined_reasoning = (
         f"commerce_score: {c_score}/100\n{c_reasoning}\n\n"
         f"aesthetic_score: {a_score}/100\n{a_reasoning}\n\n"
+    )
+    
+    if state.get("visual_score") is not None:
+        v_score = state.get("visual_score")
+        combined_reasoning += f"visual_score (Phase 4): {v_score}/100\n{state.get('visual_reasoning')}\n\n"
+
+    combined_reasoning += (
         f"Top Evidence Videos:\n{video_links_str}\n\n"
         f"Product Category: {tier}"
     )

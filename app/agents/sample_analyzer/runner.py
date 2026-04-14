@@ -53,6 +53,8 @@ def run_sr_agent(
         "aesthetic_score": result.get("aesthetic_score"),
         "aesthetic_reasoning": result.get("aesthetic_reasoning"),
         "top_3_video_urls": result.get("top_3_video_urls") or [],
+        "visual_score": result.get("visual_score"),
+        "visual_reasoning": result.get("visual_reasoning"),
         "compatibility_status": result.get("compatibility_status"),
         "rich_creator_detail": result.get("rich_creator_detail"),
         "rich_product_detail": result.get("rich_product_detail"),

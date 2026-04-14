@@ -41,6 +41,12 @@ class SREvaluationState(TypedDict):
     aesthetic_reasoning: Optional[str]
     top_3_video_urls: Optional[List[str]]
 
+    # -- Populated by visual_evaluation_node (Phase 4) --
+    visual_score: Optional[int]
+    visual_reasoning: Optional[str]
+    matched_patterns: Optional[List[str]]
+    missing_patterns: Optional[List[str]]
+
     # -- Populated by decision_node --
     final_decision: Optional[str]
     decision_reason: Optional[str]

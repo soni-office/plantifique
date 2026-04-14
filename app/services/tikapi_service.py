@@ -76,18 +76,24 @@ class TikApiService:
         if not playlists:
             return None
 
-        prompt = f"""
+        prompt = f"""You are determining which of a TikTok creator's playlists is most relevant to the product we want them to review.
 Product: {product_title}
 
-Playlists:
+Creator's Playlists:
 {json.dumps([{"mix_name": p.get("mixName"), "mix_id": p.get("mixId")} for p in playlists if p.get("mixId")], indent=2)}
 
-Return the most relevant mix_id or null.
+Select the mix_id of the playlist that conceptually matches this product category (even if in another language like Spanish). If none are a good fit (e.g. they are all about gaming or food), return None.
 """
+       
 
         try:
             result = self.llm.invoke(prompt)
-            return result.selected_mix_id
+            if result and result.selected_mix_id:
+                mix_id = result.selected_mix_id
+                selected_name = next((p.get("mixName") or p.get("name") for p in playlists if p.get("mixId") == mix_id or p.get("id") == mix_id), "Unknown")
+                logger.info(f"[TikAPI] AI selected playlist '{selected_name}' for product '{product_title}'. Fetching tailored videos...")
+                return mix_id
+            return None
         except Exception as e:
             logger.warning("Playlist selection failed: %s", e)
             return None
