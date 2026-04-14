@@ -11,6 +11,7 @@ NOTE:
 IMPORTANT DATA HANDLING RULE:
 
 Creator or product JSON may sometimes have missing, hidden, or unavailable fields. 
+The Creator may belong to any place and hence their bio description and other personal data might be incomplete or not in English and sometimes includes emojis as well. Consider those language and cultural nuances and decode those emoji codes as well to analyse the text appropriately. 
 If any expected signal (e.g., demographics, engagement metrics, category distributions, or price ranges) is missing or empty, do NOT treat this as a negative indicator.
 
 Instead:

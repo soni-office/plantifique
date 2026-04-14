@@ -38,7 +38,6 @@ def run_sr_agent(
         "final_decision": None,
         "decision_reason": None,
     }
-
     result = _graph.invoke(initial_state)
 
     # The detailed combined reasoning is generated inside decision_node
@@ -49,8 +48,8 @@ def run_sr_agent(
         "tier": result.get("tier"),
         "filters_passed": result.get("filters_passed"),
         "validation_reason": result.get("validation_reason"),
-        "profile_score": result.get("commerce_score"),
-        "profile_reasoning": result.get("commerce_reasoning"),
+        "commerce_score": result.get("commerce_score"),
+        "commerce_reasoning": result.get("commerce_reasoning"),
         "aesthetic_score": result.get("aesthetic_score"),
         "aesthetic_reasoning": result.get("aesthetic_reasoning"),
         "top_3_video_urls": result.get("top_3_video_urls") or [],

@@ -131,16 +131,16 @@ class SampleAnalysisService:
     def evaluate(self, org_id: str, sample_id: str, user_id: str, threshold: int = 70) -> dict:
         """
         Trigger AI analysis for a sample.
-        Skips if analysis_score already exists. Invalidates item + list cache on success.
+        Skips if analysis already completed. Invalidates item + list cache on success.
         """
         from app.agents.sample_analyzer.runner import run_sr_agent
 
-        existing = self.repo.get(sample_id)
-        if existing and existing.get("analysis_status") == "COMPLETED":
-            logger.warning(
-                "sample_id=%s already analysed, skipping re-evaluation", sample_id
-            )
-            return {"status": "skipped", "message": "Analysis already exists for this sample_id", "data": SampleAnalysis.from_dict(existing).get_analysis_result()}
+        # existing = self.repo.get(sample_id)
+        # if existing and existing.get("analysis_status") == "COMPLETED":
+        #     logger.warning(
+        #         "sample_id=%s already analysed, skipping re-evaluation", sample_id
+        #     )
+        #     return {"status": "skipped", "message": "Analysis already exists for this sample_id", "data": SampleAnalysis.from_dict(existing).get_analysis_result()}
 
         logger.info(
             "Evaluating sample_id=%s org=%s by=%s", sample_id, org_id, user_id
@@ -170,8 +170,11 @@ class SampleAnalysisService:
             "tier": result.get("tier"),
             "filters_passed": result.get("filters_passed"),
             "validation_reason": result.get("validation_reason"),
-            "analysis_score": result.get("llm_score"),
-            "analysis_reasoning": result.get("llm_reasoning"),
+            "commerce_score": result.get("commerce_score"),
+            "commerce_reasoning": result.get("commerce_reasoning"),
+            "aesthetic_score": result.get("aesthetic_score"),
+            "aesthetic_reasoning": result.get("aesthetic_reasoning"),
+            "top_3_video_urls": result.get("top_3_video_urls") or [],
             "decision_reason": result.get("decision_reason"),
             "rich_creator_detail": result.get("rich_creator_detail"),
             "rich_product_detail": result.get("rich_product_detail"),

@@ -48,27 +48,12 @@ async def evaluate_sample_request(
     threshold: int = Query(70, description="Minimum score required to accept"),
     user=Depends(get_current_user),
 ):
-    """Manually trigger AI analysis for a sample. Saves result to Firestore."""
-    from app.agents.sample_analyzer.runner import run_sr_agent
-
-    logger.info("Evaluating sample_id=%s for user=%s org=%s", sample_id, user["id"], user["org_id"])
-
-    analysis_repo = SampleAnalysisRepository()
-
+    """Manually trigger AI analysis for a sample (Phase 1 → 2 → 3 → decision)."""
     try:
-        if settings.mock_tiktok:
-            access_token = "mock_access_token"
-            cipher = "mock_cipher"
-        else:
-            token_service = TokenService()
-            access_token = token_service.get_valid_access_token(user["org_id"])
-            res = shop_cipher(user["org_id"])
-            cipher = res["data"]["shops"][0]["cipher"]
-
-        result = run_sr_agent(
-            sample_request_id=sample_id,
-            access_token=access_token,
-            shop_cipher=cipher,
+        return SampleAnalysisService().evaluate(
+            org_id=user["org_id"],
+            sample_id=sample_id,
+            user_id=user["id"],
             threshold=threshold,
         )
     except Exception as e:

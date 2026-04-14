@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.clients.tiktok.creator_client import TikTokCreatorClient
 from app.clients.tiktok.product_client import TikTokProductClient
 from app.cache import cache, keys, ttl
-from app.services.tikapi.client import TikApiService
+from app.services.tikapi_service import tikapi_service
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,7 @@ def fetch_data_node(state: SREvaluationState) -> dict:
     Phase 0: fetch sample from DB, resolve tier, and — for any tier that requires
     threshold checks — fetch the rich creator detail from TikTok immediately so
     Phase 1 (validation_node) works with real, up-to-date metrics.
+    Phase 2 and Phase 3 performs the aesthetic evaluation of the creator as per the product niche.
 
     post_rate is extracted from the rich creator detail as:
         raw_post_rate / 100  → actual percentage
@@ -237,14 +238,10 @@ def validation_node(state: SREvaluationState) -> dict:
     tier = state.get("tier", "UNKNOWN")
     post_rate = state.get("post_rate", 0.0)
 
-    gmv, followers, _, _ = _extract_creator_metrics(creator)
     logger.info(
-        "Validation tier=%s username=%s followers=%s gmv=%.2f post_rate=%.1f%% using_rich_data=%s",
+        "Validation tier=%s username=%s - using_rich_data=%s",
         tier,
         (rich_creator or state.get("creator_data", {})).get("username"),
-        followers,
-        gmv,
-        post_rate,
         using_rich,
     )
 
@@ -273,8 +270,8 @@ def fetch_aesthetic_data_node(state: SREvaluationState) -> dict:
     creator = state.get("creator_data") or {}
     username = (
         creator.get("username")
-        or creator.get("handle")
-        or creator.get("creator_name")
+        or creator.get("nickname")
+        or creator.get("creator_open_id")
     )
 
     if not username:
@@ -283,9 +280,11 @@ def fetch_aesthetic_data_node(state: SREvaluationState) -> dict:
 
     logger.info("[TikAPI] Fetching top videos for creator username=%s", username)
     product_title = state.get("product_title", "")
-    recent_videos = []
-    if username:
-        recent_videos = TikApiService.enrich_creator(username, product_title=product_title)
+    try:
+        recent_videos = tikapi_service.enrich_creator(username, product_title=product_title)
+    except Exception as e:
+        logger.warning("[TikAPI] enrich_creator failed for username=%s: %s", username, e)
+        recent_videos = []
     logger.info("[TikAPI] Got %d videos for username=%s", len(recent_videos), username)
     return {"recent_videos": recent_videos}
 
@@ -456,7 +455,7 @@ def decision_node(state: SREvaluationState) -> dict:
     video_links_str = "\n".join([f"- {url}" for url in top_videos]) if top_videos else "No matching videos found."
 
     combined_reasoning = (
-        f"profile_score: {c_score}/100\n{c_reasoning}\n\n"
+        f"commerce_score: {c_score}/100\n{c_reasoning}\n\n"
         f"aesthetic_score: {a_score}/100\n{a_reasoning}\n\n"
         f"Top Evidence Videos:\n{video_links_str}\n\n"
         f"Product Category: {tier}"

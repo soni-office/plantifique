@@ -17,7 +17,7 @@ auto-deletes the document after that timestamp via a TTL policy.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 AnalysisStatus = Literal["NOT_STARTED", "QUEUED", "COMPLETED", "FAILED"]
@@ -51,8 +51,6 @@ class SampleAnalysis:
     last_synced_at: Optional[datetime] = None
 
     # ── Analysis state ────────────────────────────────────────────────────
-    # NOT_STARTED = synced but no analysis initiated yet (default for new records)
-    # QUEUED      = user triggered analysis; agent is running
     analysis_status: AnalysisStatus = "NOT_STARTED"
     review_status: ReviewStatus = "PENDING_REVIEW"
     first_seen_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -62,9 +60,18 @@ class SampleAnalysis:
     tier: Optional[str] = None
     filters_passed: Optional[bool] = None
     validation_reason: Optional[str] = None
-    analysis_score: Optional[int] = None       # LLM score 0–100
-    analysis_reasoning: Optional[str] = None   # LLM compatibility reasoning
-    decision_reason: Optional[str] = None      # Final decision explanation
+
+    # Phase 2 — Commerce evaluation
+    commerce_score: Optional[int] = None         # Commerce/audience fit score 0–100
+    commerce_reasoning: Optional[str] = None     # Commerce reasoning from LLM
+
+    # Phase 3 — Aesthetic evaluation
+    aesthetic_score: Optional[int] = None       # Visual/aesthetic fit score 0–100
+    aesthetic_reasoning: Optional[str] = None   # Aesthetic reasoning from LLM
+    top_3_video_urls: List[str] = field(default_factory=list)  # Evidence video URLs
+
+    # Final decision explanation (combined from both phases)
+    decision_reason: Optional[str] = None
     processed_at: Optional[datetime] = None
 
     # ── Human feedback ────────────────────────────────────────────────────
@@ -99,8 +106,11 @@ class SampleAnalysis:
             tier=data.get("tier"),
             filters_passed=data.get("filters_passed"),
             validation_reason=data.get("validation_reason"),
-            analysis_score=data.get("analysis_score"),
-            analysis_reasoning=data.get("analysis_reasoning"),
+            commerce_score=data.get("commerce_score"),
+            commerce_reasoning=data.get("commerce_reasoning"),
+            aesthetic_score=data.get("aesthetic_score"),
+            aesthetic_reasoning=data.get("aesthetic_reasoning"),
+            top_3_video_urls=data.get("top_3_video_urls") or [],
             decision_reason=data.get("decision_reason"),
             processed_at=data.get("processed_at"),
             feedback_rating=data.get("feedback_rating"),
@@ -129,8 +139,11 @@ class SampleAnalysis:
             "tier": self.tier,
             "filters_passed": self.filters_passed,
             "validation_reason": self.validation_reason,
-            "analysis_score": self.analysis_score,
-            "analysis_reasoning": self.analysis_reasoning,
+            "commerce_score": self.commerce_score,
+            "commerce_reasoning": self.commerce_reasoning,
+            "aesthetic_score": self.aesthetic_score,
+            "aesthetic_reasoning": self.aesthetic_reasoning,
+            "top_3_video_urls": self.top_3_video_urls,
             "decision_reason": self.decision_reason,
             "processed_at": self.processed_at,
             "feedback_rating": self.feedback_rating,
@@ -138,25 +151,28 @@ class SampleAnalysis:
             "updated_at": self.updated_at,
             "delete_at": self.delete_at,
         }
-    # lets include get review status and feedback methods here for convenience
+
     def get_review_status(self) -> ReviewStatus:
         return self.review_status
-    
+
     def get_feedback(self) -> dict:
         return {
             "rating": self.feedback_rating,
             "comment": self.feedback_comment,
         }
-    
+
     def get_analysis_result(self) -> dict:
-        """Return analysis fields using DB field names (matches frontend SampleApplication type)."""
+        """Return analysis fields in the normalised shape the service/frontend expects."""
         return {
             "sample_request_id": self.tiktok_sample_id,
             "final_decision": self.final_decision,
             "tier": self.tier,
             "filters_passed": self.filters_passed,
             "validation_reason": self.validation_reason,
-            "analysis_score": self.analysis_score,
-            "analysis_reasoning": self.analysis_reasoning,
+            "commerce_score": self.commerce_score,
+            "commerce_reasoning": self.commerce_reasoning,
+            "aesthetic_score": self.aesthetic_score,
+            "aesthetic_reasoning": self.aesthetic_reasoning,
+            "top_3_video_urls": self.top_3_video_urls,
             "decision_reason": self.decision_reason,
         }
