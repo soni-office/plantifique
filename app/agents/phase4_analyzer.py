@@ -227,7 +227,7 @@ def run_phase4_analysis(
             temperature=0,
             vertexai=True
         ).with_structured_output(Phase4Result)
-        breakpoint()
+        
         parse_prompt = f"""Based on the following video analysis result, extract structured data.
 
 VIDEO ANALYSIS:

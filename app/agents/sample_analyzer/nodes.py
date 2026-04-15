@@ -509,13 +509,13 @@ def decision_node(state: SREvaluationState) -> dict:
     video_links_str = "\n".join([f"- {url}" for url in top_videos]) if top_videos else "No matching videos found."
 
     combined_reasoning = (
-        f"commerce_score: {c_score}/100\n{c_reasoning}\n\n"
-        f"aesthetic_score: {a_score}/100\n{a_reasoning}\n\n"
+        f"commerce_score: {c_score}/100\n\n"
+        f"aesthetic_score: {a_score}/100\n\n"
     )
     
     if state.get("visual_score") is not None:
         v_score = state.get("visual_score")
-        combined_reasoning += f"visual_score (Phase 4): {v_score}/100\n{state.get('visual_reasoning')}\n\n"
+        combined_reasoning += f"visual_score (Phase 4): {v_score}/100\n\n"
 
     combined_reasoning += (
         f"Top Evidence Videos:\n{video_links_str}\n\n"

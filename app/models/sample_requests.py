@@ -64,11 +64,17 @@ class SampleAnalysis:
     # Phase 2 — Commerce evaluation
     commerce_score: Optional[int] = None         # Commerce/audience fit score 0–100
     commerce_reasoning: Optional[str] = None     # Commerce reasoning from LLM
+    compatibility_status: Optional[str] = None   # PROCESSED completion flag
 
     # Phase 3 — Aesthetic evaluation
     aesthetic_score: Optional[int] = None       # Visual/aesthetic fit score 0–100
     aesthetic_reasoning: Optional[str] = None   # Aesthetic reasoning from LLM
     top_3_video_urls: List[str] = field(default_factory=list)  # Evidence video URLs
+
+    # Phase 4 — Visual frame evaluation
+    visual_score: Optional[int] = None
+    visual_reasoning: Optional[str] = None
+    
 
     # Final decision explanation (combined from both phases)
     decision_reason: Optional[str] = None
@@ -108,9 +114,14 @@ class SampleAnalysis:
             validation_reason=data.get("validation_reason"),
             commerce_score=data.get("commerce_score"),
             commerce_reasoning=data.get("commerce_reasoning"),
+            compatibility_status=data.get("compatibility_status"),
             aesthetic_score=data.get("aesthetic_score"),
             aesthetic_reasoning=data.get("aesthetic_reasoning"),
             top_3_video_urls=data.get("top_3_video_urls") or [],
+            visual_score=data.get("visual_score"),
+            visual_reasoning=data.get("visual_reasoning"),
+            matched_patterns=data.get("matched_patterns") or [],
+            missing_patterns=data.get("missing_patterns") or [],
             decision_reason=data.get("decision_reason"),
             processed_at=data.get("processed_at"),
             feedback_rating=data.get("feedback_rating"),
@@ -141,9 +152,14 @@ class SampleAnalysis:
             "validation_reason": self.validation_reason,
             "commerce_score": self.commerce_score,
             "commerce_reasoning": self.commerce_reasoning,
+            "compatibility_status": self.compatibility_status,
             "aesthetic_score": self.aesthetic_score,
             "aesthetic_reasoning": self.aesthetic_reasoning,
             "top_3_video_urls": self.top_3_video_urls,
+            "visual_score": self.visual_score,
+            "visual_reasoning": self.visual_reasoning,
+            "matched_patterns": self.matched_patterns,
+            "missing_patterns": self.missing_patterns,
             "decision_reason": self.decision_reason,
             "processed_at": self.processed_at,
             "feedback_rating": self.feedback_rating,
@@ -171,8 +187,13 @@ class SampleAnalysis:
             "validation_reason": self.validation_reason,
             "commerce_score": self.commerce_score,
             "commerce_reasoning": self.commerce_reasoning,
+            "compatibility_status": self.compatibility_status,
             "aesthetic_score": self.aesthetic_score,
             "aesthetic_reasoning": self.aesthetic_reasoning,
             "top_3_video_urls": self.top_3_video_urls,
+            "visual_score": self.visual_score,
+            "visual_reasoning": self.visual_reasoning,
+            "matched_patterns": self.matched_patterns,
+            "missing_patterns": self.missing_patterns,
             "decision_reason": self.decision_reason,
         }
