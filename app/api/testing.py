@@ -4,10 +4,10 @@ import json
 import logging
 
 from app.api.auth_session import get_current_user
-from app.services.tiktok.token_service import TokenService
-from app.services.tiktok.product_service import TikTokProductService
-from app.services.tikapi.client import TikApiService
-from app.agents.tools import get_tier
+from app.services.token_service import TokenService
+from app.clients.tiktok.product_client import TikTokProductClient
+from app.services.tikapi_service import tikapi_service
+from app.agents.tools import resolve_tier
 from app.agents.rubrics import format_rubric_for_prompt
 from app.utils.shop_ciphers import shop_cipher
 from app.core.config import settings
@@ -30,7 +30,7 @@ async def evaluate_aesthetic(
     Testing endpoint: runs Phase 3 (Aesthetic) + Phase 4 (Video Analysis) 
     for any product + creator pair without needing a sample request.
     """
-    from langchain_google_vertexai import ChatVertexAI
+    from langchain_google_genai import ChatGoogleGenerativeAI
     from app.agents.sample_analyzer.prompts import AESTHETIC_EVALUATION_PROMPT
     from app.agents.sample_analyzer.nodes import _sanitize_video, AestheticScoreResult
     from app.agents.phase4_analyzer import run_phase4_analysis
@@ -43,9 +43,8 @@ async def evaluate_aesthetic(
             raise ValueError(f"No shop found associated with org_id {user['org_id']}. Please check TikTok connection. Response: {res}")
             
         cipher = res["data"]["shops"][0]["cipher"]
-
         # Fetch live product details from TikTok Sandbox
-        product_res = TikTokProductService.get_product_by_id(access_token, cipher, body.product_id)
+        product_res = TikTokProductClient.get_by_id(access_token, cipher, body.product_id)
         
         product_data = {}
         if product_res and isinstance(product_res, dict):
@@ -66,18 +65,19 @@ async def evaluate_aesthetic(
         
         product_title = product_data.get("title", product_data.get("product_name", "Unknown Product"))
         product_description = product_data.get("description", "")
-        tier = get_tier(product_title)
+        tier = resolve_tier(user['org_id'], body.creator_username , product_id=body.product_id)
 
         # Phase 3: Fetch creator videos with intelligent playlist routing
-        videos = TikApiService.enrich_creator(body.creator_username, product_title=product_title)
+        videos = tikapi_service.enrich_creator(username=body.creator_username, product_title=product_title)
         print(f"[Testing] Fetched {len(videos)} videos for {body.creator_username}")
 
         # Phase 3: Gemini Aesthetic Score
-        llm = ChatVertexAI(
-            model_name=settings.vertex_model,
+        llm = ChatGoogleGenerativeAI(
+            model=settings.vertex_model,
             project=settings.gcp_project,
             location="us-central1",
             temperature=0,
+            vertexai=True
         )
         structured_llm = llm.with_structured_output(AestheticScoreResult)
 
@@ -120,7 +120,7 @@ async def evaluate_aesthetic(
         return {
             "status": "success",
             "product_title": product_title,
-            "tier": tier,
+            "tier": tier[0],
             "creator_username": body.creator_username,
             "videos_analyzed": len(videos),
             # Phase 3

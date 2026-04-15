@@ -3,7 +3,7 @@ import logging
 import os
 
 from pydantic import BaseModel, Field
-from langchain_google_vertexai import ChatVertexAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.agents.tools import fetch_sample_from_db, resolve_tier
 from app.agents.sample_analyzer.state import SREvaluationState
@@ -371,11 +371,12 @@ def commerce_evaluation_node(state: SREvaluationState) -> dict:
     else:
         logger.debug("[RAG] Disabled (WANT_TO_USE_RAG=false)")
 
-    llm = ChatVertexAI(
-        model_name=settings.vertex_model,
+    llm = ChatGoogleGenerativeAI(
+        model=settings.vertex_model,
         project=settings.gcp_project,
         location="us-central1",
         temperature=0,
+        vertexai=True
     )
     structured_llm = llm.with_structured_output(CommerceScoreResult)
 
@@ -404,11 +405,12 @@ def aesthetic_evaluation_node(state: SREvaluationState) -> dict:
     recent_videos = state.get("recent_videos") or []
     recent_videos_json = json.dumps(recent_videos, indent=2) if recent_videos else "[]"
     
-    llm = ChatVertexAI(
-        model_name=settings.vertex_model,
+    llm = ChatGoogleGenerativeAI(
+        model=settings.vertex_model,
         project=settings.gcp_project,
         location="us-central1",
         temperature=0,
+        vertexai=True
     )
     structured_llm = llm.with_structured_output(AestheticScoreResult)
 

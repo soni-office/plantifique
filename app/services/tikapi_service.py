@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Optional
 
-from langchain_google_vertexai import ChatVertexAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
@@ -27,9 +27,10 @@ class TikApiService:
 
     def __init__(self):
         self.client = TikApiClient()
-        self.llm = ChatVertexAI(
-            model_name=settings.vertex_model,
-            temperature=0
+        self.llm = ChatGoogleGenerativeAI(
+            model=settings.vertex_model,
+            temperature=0,
+            vertexai=True
         ).with_structured_output(PlaylistSelection)
 
     # ---------- PUBLIC ENTRY POINT ----------

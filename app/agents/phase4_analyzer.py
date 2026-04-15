@@ -11,7 +11,7 @@ import requests
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 from pydantic import BaseModel, Field
-from langchain_google_vertexai import ChatVertexAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.core.config import settings
 from app.agents.rubrics import format_rubric_for_prompt
@@ -220,13 +220,14 @@ def run_phase4_analysis(
         raw_text = response.text
 
         # Parse structured output using LangChain wrapper
-        structured_llm = ChatVertexAI(
-            model_name=settings.vertex_model,
+        structured_llm = ChatGoogleGenerativeAI(
+            model=settings.vertex_model,
             project=settings.gcp_project,
             location="us-central1",
             temperature=0,
+            vertexai=True
         ).with_structured_output(Phase4Result)
-
+        breakpoint()
         parse_prompt = f"""Based on the following video analysis result, extract structured data.
 
 VIDEO ANALYSIS:
