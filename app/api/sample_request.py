@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
@@ -64,7 +65,13 @@ async def evaluate_sample_request(
 # ── Review status ─────────────────────────────────────────────────────────
 
 class ReviewStatusBody(BaseModel):
+    # Internal status saved in our Firestore DB (e.g. "APPROVED", "REJECTED")
     status: str
+    # Maps directly to TikTok's review_result field: "APPROVE" or "REJECT"
+    review_result: str
+    # Required by TikTok when review_result is "REJECT".
+    # One of: NOT_MATCH | OFFLINE | OUT_OF_STOCK | OTHER
+    reject_reason: Optional[str] = None
 
 
 @router.patch("/{sample_id}/review-status")
@@ -73,13 +80,58 @@ async def update_review_status(
     body: ReviewStatusBody,
     user=Depends(get_current_user),
 ):
-    """Update the human review decision for a sample."""
+    """
+    Update the human review decision for a sample.
+
+    This does TWO things in sequence:
+      1. Saves the review status to our internal Firestore DB.
+      2. Calls TikTok's official Seller Review API so the decision
+         is immediately reflected on the live TikTok Shop as well.
+    """
     try:
-        return SampleAnalysisService().update_review_status(
-            org_id=user["org_id"],
-            sample_id=sample_id,
-            status=body.status,
+        # Step 1: Save to our internal Firestore DB first
+        repo = SampleAnalysisRepository()
+        repo.set_review_status(sample_id, body.status)
+        logger.info(
+            "Review status saved to DB: sample_id=%s status=%s by=%s",
+            sample_id, body.status, user["id"],
         )
+
+        # Step 2: Sync the decision to TikTok Shop via official API
+        try:
+            access_token, cipher = _get_token_and_cipher(user["org_id"])
+            tiktok_response = TikTokSampleService.review(
+                access_token=access_token,
+                shop_cipher=cipher,
+                application_id=sample_id,
+                review_result=body.review_result,
+                reject_reason=body.reject_reason,
+            )
+            logger.info(
+                "TikTok Shop review synced: sample_id=%s review_result=%s tiktok_response=%s",
+                sample_id, body.review_result, tiktok_response,
+            )
+        except ValueError as ve:
+            raise HTTPException(status_code=422, detail=str(ve))
+        except Exception as tiktok_err:
+            logger.error(
+                "TikTok review sync failed for sample_id=%s: %s",
+                sample_id, tiktok_err,
+            )
+            return {
+                "status": "partial_success",
+                "sample_id": sample_id,
+                "review_status": body.status,
+                "warning": f"Saved to DB but TikTok sync failed: {tiktok_err}",
+            }
+
+        return {
+            "status": "success",
+            "sample_id": sample_id,
+            "review_status": body.status,
+            "tiktok_synced": True,
+        }
+
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

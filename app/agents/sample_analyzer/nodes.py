@@ -305,6 +305,65 @@ def flag_internal_node(state: SREvaluationState) -> dict:
         "decision_reason": reasons.get(tier, f"Flagged for internal review. {val_reason}"),
     }
 
+def roi_check_node(state: SREvaluationState) -> dict:
+    """
+    Stage 1b: ROI Validation Gate (Tier 4 Only)
+
+    Ensures the creator has previously 'COMPLETED' a Plantifique sample
+    (which proves they generate sales value). Uses the Seller Search API.
+    """
+    tier = state.get("tier", "UNKNOWN")
+
+    if tier != "TIER_4":
+        logger.info("[ROI Check] Skipped — tier=%s is not TIER_4", tier)
+        return {"roi_passed": None, "roi_reason": f"ROI check not applicable for {tier}."}
+
+    creator = state.get("creator_data", {}) or {}
+    username = creator.get("username")
+    access_token = state.get("access_token")
+    shop_cipher = state.get("shop_cipher")
+
+    if not username or not access_token:
+        logger.warning("[ROI Check] Failed — Missing username or access_token")
+        return {
+            "roi_passed": False,
+            "roi_reason": "[Tier 4 ROI Gate] Failed (Missing username or token)",
+        }
+
+    logger.info("[ROI Check] Running Tier 4 ROI gate for username=%s", username)
+
+    try:
+        from app.clients.tiktok.sample_client import TikTokSampleClient
+        res = TikTokSampleClient.search(
+            access_token=access_token,
+            shop_cipher=shop_cipher,
+            status="COMPLETED",
+            username=username
+        )
+        applications = res.get("data", {}).get("sample_applications", [])
+        if len(applications) > 0:
+            reason = f"[Tier 4 ROI Gate Passed] Creator '{username}' has {len(applications)} 'COMPLETED' sample(s) with Plantifique."
+            logger.info("[ROI Check] PASSED for username=%s", username)
+            return {"roi_passed": True, "roi_reason": reason}
+        else:
+            reason = f"[Tier 4 ROI Gate Failed] Creator '{username}' has zero 'COMPLETED' samples with Plantifique."
+            logger.info("[ROI Check] FAILED for username=%s (zero returned)", username)
+            return {"roi_passed": False, "roi_reason": reason}
+    except Exception as e:
+        logger.error("[ROI Check] API Error for username=%s: %s", username, e)
+        return {
+            "roi_passed": False,
+            "roi_reason": f"[Tier 4 ROI Gate Error] Unable to verify history: {str(e)}"
+        }
+
+
+def route_after_roi(state: SREvaluationState) -> str:
+    """Routing after roi_check_node. False -> decision, else -> commerce_evaluation"""
+    if state.get("roi_passed") is False:
+        return "decision"
+    return "commerce_evaluation"
+
+
 def commerce_evaluation_node(state: SREvaluationState) -> dict:
     """Stage 2: Gemini compatibility analysis — uses strictly standard TikTok Shop Commerce data."""
     creator = state.get("creator_data", {})
@@ -487,6 +546,8 @@ def decision_node(state: SREvaluationState) -> dict:
     """Makes a final ACCEPT/REJECT decision based on Phase 2 AND Phase 3 outputs."""
     filters_passed = state.get("filters_passed", False)
     val_reason = state.get("validation_reason", "Failed validation.")
+    roi_passed = state.get("roi_passed")
+    roi_reason = state.get("roi_reason", "")
     tier = state.get("tier", "UNKNOWN")
 
     # 1. Did it fail Stage 1 logic immediately?
@@ -497,7 +558,15 @@ def decision_node(state: SREvaluationState) -> dict:
              "compatibility_status": "SKIPPED"
          }
 
-    # 2. Passed Stage 1, so both Phase 2 (Commerce) and Phase 3 (Aesthetic) ran.
+    # 2. Did it fail Stage 1b ROI Gate? (Tier 4 only)
+    if roi_passed is False:
+         return {
+             "final_decision": "REJECT",
+             "decision_reason": f"{roi_reason}\n\nProduct Category: {tier}",
+             "compatibility_status": "SKIPPED"
+         }
+
+    # 3. Passed Stage 1 and 1b — run Phase 2 (Commerce) and Phase 3 (Aesthetic) scores
     c_score = state.get("commerce_score", 0)
     a_score = state.get("aesthetic_score", 0)
     threshold = state.get("threshold", 70)
@@ -556,5 +625,5 @@ def route_after_validation(state: SREvaluationState) -> str:
     if filters_passed is False:
         return "decision"
 
-    # Passed Phase 1 — go to Phase 2 (Commerce)
-    return "commerce_evaluation"
+    # Passed Phase 1 — go to ROI check (which auto-skips for non-Tier4, then proceeds to Phase 2)
+    return "roi_check"
