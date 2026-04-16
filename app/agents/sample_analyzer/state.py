@@ -26,13 +26,18 @@ class SREvaluationState(TypedDict):
     filters_passed: Optional[bool]
     validation_reason: Optional[str]
 
+    # -- Populated by roi_check_node (Stage 1b — Tier 4 only) --
+    roi_passed: Optional[bool]          # None = not applicable (non-Tier4), True/False = pass/fail
+    roi_reason: Optional[str]
+
     # -- Populated by fetch_aesthetic_data_node --
     recent_videos: Optional[List[Dict[str, Any]]]
 
     # -- Populated by commerce_evaluation_node (Phase 2) --
     commerce_score: Optional[int]
     commerce_reasoning: Optional[str]
-    compatibility_status: Optional[str]
+    compatibility_status: Optional[str]  # "PROCESSED" or "SKIPPED"
+
     rich_creator_detail: Optional[Dict[str, Any]]
     rich_product_detail: Optional[Dict[str, Any]]
 
