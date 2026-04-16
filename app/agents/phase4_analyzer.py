@@ -1,15 +1,20 @@
 """
 Phase 4: Visual Brand Safety Analysis via Gemini 2.5 Flash video understanding.
 
-Downloads top video(s) from TikAPI CDN links and feeds them directly to Gemini
-alongside the client-defined product rubric for deep visual evaluation.
+Downloads top video(s) from TikAPI CDN links, uploads them to GCS, then passes
+gs:// URIs to Vertex AI — bypassing the ~10 MB inline request body limit.
+
+GCS bucket lifecycle rule (set once in console): Age = 2 days → Delete.
+Videos are also deleted immediately after analysis completes.
 """
 import logging
 import tempfile
 import os
+import uuid
 import requests
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part
+from datetime import date
+from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -34,23 +39,36 @@ PRODUCT BEING EVALUATED: {product_title}
 
 You are watching {video_count} TikTok video(s) from creator @{creator_username}.
 
+IMPORTANT CONTEXT:
+- The provided videos may NOT fully represent the creator's overall content niche.
+- These videos are a sample (e.g., trending or playlist-based).
+- If the videos do not show relevant evidence for the product category, do NOT assume the creator lacks that capability — only evaluate based on visible evidence in these videos.
+
 YOUR TASK:
 1. Watch each video carefully. Listen to what the creator says. Observe the visuals — skin texture, filming angles, environment, editing style, and how they interact with their audience.
 2. Score the creator 0-100 based on how well they match the CLIENT-DEFINED patterns and qualities above.
    - 80-100: Strong match. Creator clearly demonstrates most patterns and qualities.
    - 50-79: Moderate match. Creator shows some patterns but lacks key qualities.
-   - 0-49: Poor match. Creator's video style does not align with this product's requirements.
-3. List exactly which client patterns you observed (matched_patterns) and which were absent (missing_patterns).
+   - 0-49: Poor match. Creator's video style does not align with this product's requirements OR there is insufficient evidence in the provided videos.
+3. List exactly which client patterns you observed (matched_patterns) and which were absent or not evidenced in the provided videos (missing_patterns).
 4. Write a detailed reasoning paragraph explaining your score with specific observations from the videos.
+
+IMPORTANT:
+- If relevant patterns are not observed, explicitly state that this is due to lack of evidence in the provided videos.
+- Do NOT generalize about the creator's overall content beyond what is visible.
 
 Be specific. Reference actual visual moments, spoken words, or editing patterns you observed. Do not be vague.
 """
 
 
+# ---------------------------------------------------------------------------
+# Download helpers
+# ---------------------------------------------------------------------------
+
 def _download_with_ytdlp(web_url: str, index: int) -> str | None:
     """
-    Primary download method: uses yt-dlp Python API to download TikTok videos.
-    yt-dlp handles TikTok's geo-restricted CDN routing far better than direct requests.
+    Primary download method: uses yt-dlp to download TikTok videos at best quality.
+    Videos are uploaded to GCS so there is no inline size limit.
     """
     try:
         import yt_dlp
@@ -59,7 +77,7 @@ def _download_with_ytdlp(web_url: str, index: int) -> str | None:
 
         ydl_opts = {
             "outtmpl": tmp_path,
-            "format": "mp4/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
@@ -69,7 +87,6 @@ def _download_with_ytdlp(web_url: str, index: int) -> str | None:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([web_url])
 
-        # yt-dlp may add extension — search for the actual file
         actual_path = tmp_path
         if not os.path.exists(actual_path):
             actual_path = tmp_path + ".mp4"
@@ -103,7 +120,7 @@ def _download_video_with_tikapi_sdk(video_id: str, index: int) -> str | None:
         response.save_video(download_addr, tmp_path)
         if os.path.exists(tmp_path):
             size_mb = os.path.getsize(tmp_path) / (1024 * 1024)
-            print(f"[Phase4]  TikAPI SDK downloaded video {index} → {size_mb:.1f} MB")
+            print(f"[Phase4] TikAPI SDK downloaded video {index} → {size_mb:.1f} MB")
             return tmp_path
     except Exception as e:
         logger.warning("[Phase4] TikAPI SDK failed for video_id=%s: %s", video_id, e)
@@ -125,23 +142,76 @@ def _download_video_raw_fallback(url: str, index: int) -> str | None:
                 if chunk:
                     f.write(chunk)
         size_mb = os.path.getsize(tmp_path) / (1024 * 1024)
-        print(f"[Phase4]   Raw CDN fallback downloaded video {index} → {size_mb:.1f} MB")
+        print(f"[Phase4] Raw CDN fallback downloaded video {index} → {size_mb:.1f} MB")
         return tmp_path
     except Exception as e:
         logger.warning("[Phase4] Raw CDN fallback failed for video %d: %s", index, e)
     return None
 
 
+# ---------------------------------------------------------------------------
+# GCS upload helper
+# ---------------------------------------------------------------------------
+
+def _upload_to_gcs(local_path: str, org_id: str, creator_username: str) -> str:
+    """
+    Upload a local video file to GCS and return the gs:// URI.
+
+    Folder structure: phase4-videos/{org_id}/{YYYY-MM-DD}/{creator_username}/{uuid}.mp4
+
+    The bucket lifecycle rule (Age=2 days → Delete) handles eventual cleanup.
+    Videos are also deleted immediately after analysis via _delete_gcs_objects().
+    """
+    from google.cloud import storage
+
+    bucket_name = settings.phase4_gcs_bucket
+    today = date.today().isoformat()                     # e.g. 2026-04-16
+    blob_name = f"phase4-videos/{org_id}/{today}/{creator_username}/{uuid.uuid4().hex}.mp4"
+
+    client = storage.Client(project=settings.gcp_project)
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    size_mb = os.path.getsize(local_path) / (1024 * 1024)
+    print(f"[Phase4] Uploading {size_mb:.1f} MB → gs://{bucket_name}/{blob_name}")
+    blob.upload_from_filename(local_path, content_type="video/mp4")
+    print(f"[Phase4] ✅ Upload complete → gs://{bucket_name}/{blob_name}")
+
+    return f"gs://{bucket_name}/{blob_name}"
+
+
+def _delete_gcs_objects(gcs_uris: list[str]) -> None:
+    """Delete GCS objects immediately after analysis. Lifecycle rule is a safety net."""
+    from google.cloud import storage
+
+    client = storage.Client(project=settings.gcp_project)
+    for uri in gcs_uris:
+        try:
+            # gs://bucket/path  →  bucket, path
+            without_prefix = uri[len("gs://"):]
+            bucket_name, blob_name = without_prefix.split("/", 1)
+            client.bucket(bucket_name).blob(blob_name).delete()
+            print(f"[Phase4] 🗑️  Deleted GCS object: {uri}")
+        except Exception as e:
+            logger.warning("[Phase4] Could not delete GCS object %s: %s", uri, e)
+
+
+# ---------------------------------------------------------------------------
+# Main analysis function
+# ---------------------------------------------------------------------------
+
 def run_phase4_analysis(
+    product_id: str,
     product_title: str,
     creator_username: str,
     video_ids: list[str],
-    web_urls: list[str] | None = None,        # TikTok web URLs for yt-dlp
-    play_url_fallbacks: list[str] | None = None,  # Raw CDN URLs as last resort
+    web_urls: list[str] | None = None,
+    play_url_fallbacks: list[str] | None = None,
+    org_id: str = "default",
 ) -> dict:
     """
-    Download videos via yt-dlp (primary) → TikAPI SDK → raw CDN fallback,
-    then send to Gemini 2.5 for rubric-based visual evaluation.
+    Download videos → upload to GCS → pass gs:// URIs to Gemini 2.5 for
+    rubric-based visual evaluation. GCS avoids the Vertex AI inline size limit.
     """
     if not video_ids and not web_urls:
         return {
@@ -154,9 +224,10 @@ def run_phase4_analysis(
     ids = video_ids or []
     urls = web_urls or []
     fallbacks = play_url_fallbacks or []
-    rubric_str = format_rubric_for_prompt(product_title)
-    temp_files = []
-    video_parts = []
+    rubric_str = format_rubric_for_prompt(product_id)
+    temp_files: list[str] = []
+    gcs_uris: list[str] = []
+    video_parts: list[Part] = []
 
     for i in range(min(3, max(len(ids), len(urls)))):
         vid_id = ids[i] if i < len(ids) else None
@@ -165,16 +236,11 @@ def run_phase4_analysis(
 
         path = None
 
-        # 1. yt-dlp via TikTok web URL (handles CDN geo-routing best)
         if web_url:
             path = _download_with_ytdlp(web_url, i + 1)
-
-        # 2. TikAPI SDK (works when CDN is accessible)
         if not path and vid_id:
             print(f"[Phase4] yt-dlp failed for video {i+1}, trying TikAPI SDK...")
             path = _download_video_with_tikapi_sdk(vid_id, i + 1)
-
-        # 3. Raw CDN URL (last resort)
         if not path and fallback_url:
             print(f"[Phase4] Trying raw CDN as last resort for video {i+1}...")
             path = _download_video_raw_fallback(fallback_url, i + 1)
@@ -184,22 +250,29 @@ def run_phase4_analysis(
             continue
 
         temp_files.append(path)
-        with open(path, "rb") as f:
-            video_data = f.read()
-        video_parts.append(Part.from_data(data=video_data, mime_type="video/mp4"))
+
+        # Upload to GCS and use URI — no inline size limit
+        try:
+            gcs_uri = _upload_to_gcs(path, org_id=org_id, creator_username=creator_username)
+            gcs_uris.append(gcs_uri)
+            video_parts.append(Part.from_uri(gcs_uri, mime_type="video/mp4"))
+        except Exception as upload_err:
+            logger.error("[Phase4] GCS upload failed for video %d: %s", i + 1, upload_err)
 
     if not video_parts:
         return {
             "visual_score": None,
             "reasoning": (
-                "Phase 4 video download failed. TikTok's CDN (v16-webapp-prime.tiktok.com) "
-                "is geo-restricted from this server location. "
-                "This will work correctly when deployed to a US-region cloud server (e.g. Cloud Run us-central1)."
+                "Phase 4 video download or GCS upload failed. "
+                "Check that PHASE4_GCS_BUCKET is set and the service account has "
+                "storage.objects.create permission on that bucket."
             ),
             "matched_patterns": [],
             "missing_patterns": [],
             "videos_downloaded": 0,
         }
+
+    print(f"[Phase4] Sending {len(video_parts)} GCS video URI(s) to Vertex AI.")
 
     prompt_text = PHASE4_PROMPT_TEMPLATE.format(
         product_title=product_title,
@@ -215,9 +288,10 @@ def run_phase4_analysis(
         contents = video_parts + [Part.from_text(prompt_text)]
         response = model.generate_content(
             contents,
-            generation_config={"temperature": 0},
+            generation_config=GenerationConfig(temperature=1.0),
         )
         raw_text = response.text
+        print(f"[Phase4] ✅ Gemini video analysis complete.")
 
         # Parse structured output using LangChain wrapper
         structured_llm = ChatGoogleGenerativeAI(
@@ -225,7 +299,7 @@ def run_phase4_analysis(
             project=settings.gcp_project,
             location="us-central1",
             temperature=0,
-            vertexai=True
+            vertexai=True,
         ).with_structured_output(Phase4Result)
         
         parse_prompt = f"""Based on the following video analysis result, extract structured data.
@@ -248,7 +322,13 @@ CREATOR: @{creator_username}
         }
 
     except Exception as e:
-        logger.error("[Phase4] Gemini video analysis failed: %s", e)
+        import traceback
+        logger.error(
+            "[Phase4] Gemini video analysis failed: %s\nType: %s\nTraceback:\n%s",
+            e, type(e).__name__, traceback.format_exc(),
+        )
+        if hasattr(e, "details") and callable(e.details):
+            logger.error("[Phase4] gRPC error details: %s", e.details())
         return {
             "visual_score": 0,
             "reasoning": f"Phase 4 analysis failed: {str(e)}",
@@ -256,8 +336,12 @@ CREATOR: @{creator_username}
             "missing_patterns": [],
             "videos_downloaded": len(video_parts),
         }
+
     finally:
-        # Clean up temp files
+        # 1. Delete GCS objects immediately (lifecycle rule is just a safety net)
+        if gcs_uris:
+            _delete_gcs_objects(gcs_uris)
+        # 2. Clean up local temp files
         for path in temp_files:
             try:
                 os.unlink(path)

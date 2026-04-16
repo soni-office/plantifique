@@ -112,6 +112,10 @@ class Settings:
     # Vertex AI
     # -------------------------------------------------------------------------
     vertex_model: str = os.getenv('VERTEX_MODEL', 'gemini-2.5-flash')
+    # GCS bucket for Phase 4 video uploads. Videos are sent to Vertex AI via gs:// URI
+    # instead of inline bytes, bypassing the ~10 MB inline request limit.
+    # Set lifecycle rule: Age=2 days → Delete on the bucket.
+    phase4_gcs_bucket: str = os.getenv('PHASE4_GCS_BUCKET', 'plantifique-phase4-videos')
 
     # Redis credentials
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")

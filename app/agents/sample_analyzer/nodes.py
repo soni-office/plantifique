@@ -420,7 +420,6 @@ def aesthetic_evaluation_node(state: SREvaluationState) -> dict:
         tier=state.get("tier"),
         recent_videos_json=recent_videos_json,
     )
-    
     res = structured_llm.invoke(prompt_str)
 
     return {
@@ -433,6 +432,7 @@ def aesthetic_evaluation_node(state: SREvaluationState) -> dict:
 def visual_evaluation_node(state: SREvaluationState) -> dict:
     """Stage 4: Deep Video Frame & Audio Analysis using yt-dlp & Gemini Flash."""
     product_title = state.get("product_title", "")
+    product_id = state.get("product_data", {}).get("id")
     creator = state.get("creator_data", {})
     username = creator.get("username") or creator.get("handle") or creator.get("creator_name") or "Unknown"
 
@@ -444,8 +444,9 @@ def visual_evaluation_node(state: SREvaluationState) -> dict:
         v for v in videos
         if v.get("web_url") in top_url_set or v.get("play_url") in top_url_set
     ]
-    if not selected_videos:
-        selected_videos = videos[:3]
+    # skipping the visual phase 4 completely if no relvant videos were found i phase 3
+    # if not selected_videos:
+    #     selected_videos = videos[:3]
 
     video_ids = [v["video_id"] for v in selected_videos if v.get("video_id")]
     web_urls = [v["web_url"] for v in selected_videos if v.get("web_url")]
@@ -454,7 +455,7 @@ def visual_evaluation_node(state: SREvaluationState) -> dict:
     if not video_ids:
         return {
             "visual_score": None,
-            "visual_reasoning": "Skipped Phase 4: No valid videos found to analyze.",
+            "visual_reasoning": "Skipped Phase 4: No relevant videos for the product were found in Phase 3 analysis among the recent or trending videos from creator.",
             "matched_patterns": [],
             "missing_patterns": []
         }
@@ -462,11 +463,13 @@ def visual_evaluation_node(state: SREvaluationState) -> dict:
     logger.info("[Phase 4] Starting visual analysis for %d videos", len(video_ids))
     try:
         phase4_result = run_phase4_analysis(
+            product_id=product_id,
             product_title=product_title,
             creator_username=username,
             video_ids=video_ids,
             web_urls=web_urls,
             play_url_fallbacks=play_url_fallbacks,
+            org_id=state.get("org_id") or "default",
         )
     except Exception as e:
         logger.error("[Phase 4] Failed frame analysis: %s", e)

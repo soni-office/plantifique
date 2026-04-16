@@ -114,6 +114,7 @@ async def evaluate_aesthetic(
             video_ids=video_ids,
             web_urls=web_urls,
             play_url_fallbacks=play_url_fallbacks,
+            org_id=user["org_id"],
         )
         print(f"[Testing] Phase 4 complete. Visual Score={phase4_result.get('visual_score')}")
 
