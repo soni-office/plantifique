@@ -9,6 +9,7 @@ from app.agents.sample_analyzer.nodes import (
     roi_check_node,
     route_after_roi,
     commerce_evaluation_node,
+    route_after_commerce,
     aesthetic_evaluation_node,
     visual_evaluation_node,
     decision_node,
@@ -53,7 +54,14 @@ def build_graph() -> StateGraph:
 
     graph.add_edge("flag_internal", END)
 
-    graph.add_edge("commerce_evaluation", "fetch_aesthetic_data")
+    graph.add_conditional_edges(
+        "commerce_evaluation",
+        route_after_commerce,
+        {
+            "fetch_aesthetic_data": "fetch_aesthetic_data",
+            "decision": "decision",
+        },
+    )
     graph.add_edge("fetch_aesthetic_data", "aesthetic_evaluation")
     graph.add_edge("aesthetic_evaluation", "visual_evaluation")
     graph.add_edge("visual_evaluation", "decision")

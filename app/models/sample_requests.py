@@ -75,6 +75,8 @@ class SampleAnalysis:
     visual_score: Optional[int] = None
     visual_reasoning: Optional[str] = None
     
+    matched_patterns: List[str] = field(default_factory=list)  # e.g. ["#plantsoftiktok", "unboxing"]
+    missing_patterns: List[str] = field(default_factory=list) # key product/creator features
 
     # Final decision explanation (combined from both phases)
     decision_reason: Optional[str] = None

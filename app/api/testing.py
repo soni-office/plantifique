@@ -109,6 +109,7 @@ async def evaluate_aesthetic(
 
         print(f"[Testing] Starting Phase 4 video download for {len(video_ids)} videos (IDs: {video_ids})...")
         phase4_result = run_phase4_analysis(
+            product_id=body.product_id,
             product_title=product_title,
             creator_username=body.creator_username,
             video_ids=video_ids,

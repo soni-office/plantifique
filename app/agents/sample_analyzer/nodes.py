@@ -158,19 +158,47 @@ def fetch_data_node(state: SREvaluationState) -> dict:
         "post_rate": post_rate,
     }
 
-def _extract_creator_metrics(creator: dict) -> tuple[float, int, int, int]:
+def _extract_gmv(creator: dict) -> float | None:
+    """
+    Extract GMV from a creator dict, returning None when the creator has hidden
+    their data (field absent from the API response) rather than conflating it with $0.
+
+    TikTok omits the gmv/gmv_30d field entirely when a creator has not granted
+    data-sharing permission. An absent field → None (hidden).
+    A present field with amount "0" → 0.0 (genuinely no sales).
+
+    Also checks gmv_range as a secondary signal: if the range is present, the
+    creator has some GMV activity even though the exact figure is hidden.
+    """
+    gmv_30d = creator.get("gmv_30d")
+    gmv     = creator.get("gmv")
+    gmv_obj = gmv_30d or gmv  # None when both are absent
+
+    if gmv_obj is None:
+        # Field missing → creator has hidden their GMV data.
+        # gmv_range being present is a secondary signal they have some activity,
+        # but either way we return None so the threshold check is skipped.
+        return None
+
+    if isinstance(gmv_obj, dict):
+        amount = gmv_obj.get("amount")
+        if amount is None:
+            # Nested amount absent inside the object → also treat as hidden
+            return None
+        return float(amount)
+
+    return float(gmv_obj)
+
+
+def _extract_creator_metrics(creator: dict) -> tuple[float | None, int, int, int]:
     """
     Extract the four metric values from a creator dict.
     Handles both the rich creator detail structure and the flat sample creator structure.
 
-    Returns: (gmv_30d, follower_count, content_count, ec_video_views)
+    Returns: (gmv, follower_count, content_count, ec_video_views)
+    gmv is None when the creator has hidden their data — callers must handle this.
     """
-    # GMV: rich detail may return gmv_30d or gmv, both as {"amount": "...", "currency": "..."}
-    gmv_obj = creator.get("gmv_30d") or creator.get("gmv") or {}
-    if isinstance(gmv_obj, dict):
-        gmv = float(gmv_obj.get("amount") or 0)
-    else:
-        gmv = float(gmv_obj or 0)
+    gmv = _extract_gmv(creator)
 
     followers = int(creator.get("follower_count") or 0)
 
@@ -194,28 +222,47 @@ def _extract_creator_metrics(creator: dict) -> tuple[float, int, int, int]:
 def _check_thresholds(creator: dict, thresholds: dict, post_rate: float) -> tuple[bool, str]:
     """
     Apply threshold checks against the creator dict (preferably rich creator detail).
-    Any threshold key set to None is skipped.
+
+    Rules:
+    - Threshold key not configured (None in thresholds dict) → skip check
+    - Metric value is None (creator hid the data) → skip that check, note it
+    - Metric value present and below minimum → FAIL
     Returns (passed: bool, reason: str).
     """
     gmv, followers, content_count, ec_video_views = _extract_creator_metrics(creator)
 
+    gmv_label = f"GMV ${gmv:,.2f}" if gmv is not None else "GMV hidden by creator"
+
     checks = [
-        ("min_last_30_days_gmv",  gmv,            f"GMV ${gmv:,.2f}",                    "needs ${val:,.2f}"),
+        ("min_last_30_days_gmv",  gmv,            gmv_label,                             "needs ${val:,.2f}"),
         ("min_follower_count",    followers,       f"Followers {followers:,}",             "needs {val:,}"),
         ("min_post_rate",         post_rate,       f"Post rate {post_rate:.1f}%",          "needs {val}%"),
         ("min_content_count",     content_count,   f"Content count {content_count}",       "needs {val}"),
         ("min_ec_video_views",    ec_video_views,  f"EC video views {ec_video_views:,}",   "needs {val:,}"),
     ]
 
+    skipped_hidden = []
+
     for key, actual, actual_label, need_template in checks:
         minimum = thresholds.get(key)
         if minimum is None:
-            continue   # threshold not configured → skip
+            continue  # threshold not configured → skip
+
+        if actual is None:
+            # Creator has hidden this metric — give benefit of the doubt, do not fail
+            skipped_hidden.append(actual_label)
+            continue
+
         if actual < minimum:
             need_str = need_template.format(val=minimum)
             return False, f"Failed {key}: {actual_label}, {need_str}."
 
-    return True, "Passed all configured threshold checks."
+    if skipped_hidden:
+        hidden_note = f" (skipped hidden metrics: {', '.join(skipped_hidden)})"
+    else:
+        hidden_note = ""
+
+    return True, f"Passed all configured threshold checks.{hidden_note}"
 
 
 def validation_node(state: SREvaluationState) -> dict:
@@ -566,25 +613,38 @@ def decision_node(state: SREvaluationState) -> dict:
              "compatibility_status": "SKIPPED"
          }
 
-    # 3. Passed Stage 1 and 1b — run Phase 2 (Commerce) and Phase 3 (Aesthetic) scores
+    # 3. Passed Stage 1 and 1b — evaluate Phase 2 (Commerce) score
     c_score = state.get("commerce_score", 0)
-    a_score = state.get("aesthetic_score", 0)
-    threshold = state.get("threshold", 70)
-    # llm_reasoning = state.get("llm_reasoning", "No reasoning provided.")
-    
-    avg_score = (c_score + a_score) / 2
-    
     c_reasoning = state.get("commerce_reasoning", "No reasoning provided.")
+    threshold = state.get("threshold", 70)
+
+    # If aesthetic phases were skipped (commerce gate), reject on commerce score alone
+    aesthetic_skipped = state.get("aesthetic_score") is None
+    if aesthetic_skipped:
+        combined_reasoning = (
+            f"commerce_score: {c_score}/100\n\n"
+            f"Aesthetic & visual phases skipped — commerce score {c_score} fell below the "
+            f"minimum threshold (45) required to proceed.\n\n"
+            f"Commerce reasoning: {c_reasoning}\n\n"
+            f"Product Category: {tier}"
+        )
+        return {
+            "final_decision": "REJECT",
+            "decision_reason": combined_reasoning,
+        }
+
+    a_score = state.get("aesthetic_score", 0)
+    avg_score = (c_score + a_score) / 2
+
     a_reasoning = state.get("aesthetic_reasoning", "No reasoning provided.")
     top_videos = state.get("top_3_video_urls", [])
-
     video_links_str = "\n".join([f"- {url}" for url in top_videos]) if top_videos else "No matching videos found."
 
     combined_reasoning = (
         f"commerce_score: {c_score}/100\n\n"
         f"aesthetic_score: {a_score}/100\n\n"
     )
-    
+
     if state.get("visual_score") is not None:
         v_score = state.get("visual_score")
         combined_reasoning += f"visual_score (Phase 4): {v_score}/100\n\n"
@@ -599,11 +659,34 @@ def decision_node(state: SREvaluationState) -> dict:
             "final_decision": "ACCEPT",
             "decision_reason": combined_reasoning
         }
-        
+
     return {
         "final_decision": "POTENTIAL_ACCEPT",
         "decision_reason": combined_reasoning
     }
+
+def route_after_commerce(state: SREvaluationState) -> str:
+    """
+    Routing after commerce_evaluation_node.
+
+    If commerce_score is below the minimum threshold (default 45) the creator
+    already lacks product-market fit — skip the expensive aesthetic + visual
+    phases and go straight to a final decision.
+    """
+    commerce_score = state.get("commerce_score", 0)
+    min_commerce_score = 45  # configurable cut-off
+    if commerce_score < min_commerce_score:
+        logger.info(
+            "[Commerce Gate] commerce_score=%d < %d — skipping aesthetic/visual phases",
+            commerce_score, min_commerce_score,
+        )
+        return "decision"
+    logger.info(
+        "[Commerce Gate] commerce_score=%d >= %d — proceeding to aesthetic evaluation",
+        commerce_score, min_commerce_score,
+    )
+    return "fetch_aesthetic_data"
+
 
 def route_after_validation(state: SREvaluationState) -> str:
     """Routing after validation node."""

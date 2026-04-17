@@ -23,6 +23,8 @@ variable "secret_names" {
     app_secret                = "app-secret"
     tiktok_encryption_key     = "tiktok-encryption-key"
     firebase_web_api_key      = "firebase-web-api-key"
-    # minmax_api_key            = "minmax-api-key"
+    tikapi_key                = "tikapi-key"
+    redis_url                 = "redis-url"           # Upstash TLS connection string
+    internal_api_secret       = "internal-api-secret"
   }
 }

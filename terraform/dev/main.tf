@@ -28,6 +28,7 @@ resource "google_project_service" "apis" {
     "iam.googleapis.com",
     "firestore.googleapis.com",
     "aiplatform.googleapis.com",
+    "storage.googleapis.com",
   ])
   project            = var.project_id
   service            = each.value
@@ -98,6 +99,49 @@ resource "google_project_iam_member" "ar_reader" {
 }
 
 # ---------------------------------------------------------------------------
+# GCS bucket for Phase 4 video uploads
+# Videos are uploaded here before being passed to Vertex AI via gs:// URI,
+# bypassing the inline request body size limit.
+#
+# If the bucket already exists (created in Console), import it first:
+#   terraform import google_storage_bucket.phase4_videos tiktok-ai-agent-488417/plantifique-phase4-videos
+# ---------------------------------------------------------------------------
+resource "google_storage_bucket" "phase4_videos" {
+  project                     = var.project_id
+  name                        = "plantifique-phase4-videos-${local.env}"
+  location                    = var.region
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  force_destroy               = false  # prevent accidental deletion via terraform destroy
+
+  labels = {
+    env       = local.env
+    purpose   = "phase4-video-analysis"
+    managedby = "terraform"
+  }
+
+  # Auto-delete objects after 2 days — lifecycle rule is a safety net.
+  # Videos are also deleted immediately after each analysis run in the code.
+  lifecycle_rule {
+    condition {
+      age = 2  # days
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+# ---- IAM: Cloud Run SA can create and delete objects in the Phase 4 bucket ----
+resource "google_storage_bucket_iam_member" "phase4_videos_admin" {
+  bucket = google_storage_bucket.phase4_videos.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.cloudrun_sa.email}"
+}
+
+# ---------------------------------------------------------------------------
 # Secret Manager secrets (containers only — values added via bootstrap-secrets.sh)
 # ---------------------------------------------------------------------------
 module "secrets" {
@@ -126,11 +170,13 @@ module "cloud_run" {
   secret_ids            = module.secrets.secret_ids
 
   # Non-sensitive env vars for dev
-  frontend_url       = "https://tiktok-ai-agent-488417.web.app"
-  extra_cors_origins = "https://tiktok-ai-agent-488417.firebaseapp.com"
-  redirect_uri       = "https://plantifique-api-dev-wtgyyixkpa-uc.a.run.app/auth/tiktokshop/callback"
-  firebase_tenant_id = var.firebase_tenant_id
-  want_to_use_rag    = true
+  frontend_url         = "https://tiktok-ai-agent-488417.web.app"
+  extra_cors_origins   = "https://tiktok-ai-agent-488417.firebaseapp.com"
+  redirect_uri         = "https://plantifique-api-dev-wtgyyixkpa-uc.a.run.app/auth/tiktokshop/callback"
+  firebase_tenant_id   = var.firebase_tenant_id
+  want_to_use_rag      = false
+  mock_sample_requests = false
+  phase4_gcs_bucket    = google_storage_bucket.phase4_videos.name
   # min_instances      = 0
   # max_instances      = 3
   # memory             = "1Gi"
@@ -139,6 +185,8 @@ module "cloud_run" {
   depends_on = [
     google_project_service.apis,
     module.secrets,
+    google_storage_bucket.phase4_videos,
+    google_storage_bucket_iam_member.phase4_videos_admin,
   ]
 }
 
