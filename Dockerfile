@@ -10,7 +10,11 @@ WORKDIR /app
 # Copy requirements file first (for Docker caching)
 COPY requirements.txt .
 
-# Install dependencies
+# ffmpeg is required by yt-dlp to merge separate video+audio streams into mp4
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 

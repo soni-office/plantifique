@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from google.cloud.firestore import FieldFilter
 from app.db.firestore import db
 
 
@@ -28,7 +29,7 @@ class OrgRepository:
         return data
 
     def get_all(self) -> list[dict]:
-        docs = self.col.where("status", "==", "ACTIVE").stream()
+        docs = self.col.where(filter=FieldFilter("status", "==", "ACTIVE")).stream()
         results = []
         for doc in docs:
             data = doc.to_dict()

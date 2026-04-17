@@ -43,6 +43,7 @@ class Settings:
     redirect_uri: str = os.getenv('REDIRECT_URI', 'http://localhost:8000/auth/tiktokshop/callback')
     auth_url: str = os.getenv('AUTH_URL', 'https://auth.tiktok-shops.com/oauth/authorize')
     token_url: str = os.getenv('TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/get')
+    refresh_token_url: str = os.getenv('REFRESH_TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/refresh')
     base_url: str = 'https://open-api.tiktokglobalshop.com'
     mock_tiktok: bool = os.getenv('MOCK_TIKTOK', 'false').lower() == 'true'
     # Sample requests are not yet granted API access — keep them mocked independently
@@ -110,7 +111,18 @@ class Settings:
     # -------------------------------------------------------------------------
     # Vertex AI
     # -------------------------------------------------------------------------
-    vertex_model: str = os.getenv('VERTEX_MODEL', 'gemini-2.0-flash-001')
+    vertex_model: str = os.getenv('VERTEX_MODEL', 'gemini-2.5-flash')
+    # GCS bucket for Phase 4 video uploads. Videos are sent to Vertex AI via gs:// URI
+    # instead of inline bytes, bypassing the ~10 MB inline request limit.
+    # Set lifecycle rule: Age=2 days → Delete on the bucket.
+    phase4_gcs_bucket: str = os.getenv('PHASE4_GCS_BUCKET', 'plantifique-phase4-videos')
+
+    # Redis credentials
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    CACHE_DEFAULT_TTL: int = int(os.getenv("CACHE_DEFAULT_TTL", 300))
+
+    # TikAPI (creator video & profile enrichment)
+    tikapi_key: str = os.getenv('TIKAPI_KEY', '')
 
     # -------------------------------------------------------------------------
     # Computed properties

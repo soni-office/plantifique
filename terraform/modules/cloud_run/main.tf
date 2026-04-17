@@ -7,6 +7,8 @@ resource "google_cloud_run_v2_service" "api" {
   template {
     service_account = var.service_account_email
 
+    timeout = "${var.timeout_seconds}s"
+
     scaling {
       min_instance_count = var.min_instances
       max_instance_count = var.max_instances
@@ -65,18 +67,14 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "FIREBASE_TENANT_ID"
         value = var.firebase_tenant_id
       }
-      env { 
-        name = "JWT_ALGORITHM"
-        value = "HS256" 
+      env {
+        name  = "JWT_ALGORITHM"
+        value = "HS256"
       }
-      env { 
-        name = "JWT_EXP_MINUTES"
-        value = "60" 
+      env {
+        name  = "JWT_EXP_MINUTES"
+        value = "60"
       }
-      # env { 
-      #   name = "MINIMAX_BASE_URL"
-      #   value = "https://api.minimax.chat/v1" 
-      # }
       env {
         name  = "AUTH_URL"
         value = "https://auth.tiktok-shops.com/oauth/authorize"
@@ -84,6 +82,18 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "TOKEN_URL"
         value = "https://auth.tiktok-shops.com/api/v2/token/get"
+      }
+      env {
+        name  = "PHASE4_GCS_BUCKET"
+        value = var.phase4_gcs_bucket
+      }
+      env {
+        name  = "MOCK_SAMPLE_REQUESTS"
+        value = tostring(var.mock_sample_requests)
+      }
+      env {
+        name  = "CACHE_DEFAULT_TTL"
+        value = tostring(var.cache_default_ttl)
       }
 
       # ---- Sensitive env vars (sourced from Secret Manager) ----
@@ -142,6 +152,37 @@ resource "google_cloud_run_v2_service" "api" {
         value_source {
           secret_key_ref {
             secret  = var.secret_ids["tiktok_encryption_key"]
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "TIKAPI_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = var.secret_ids["tikapi_key"]
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "REDIS_URL"
+        value_source {
+          secret_key_ref {
+            secret  = var.secret_ids["redis_url"]
+            version = "latest"
+          }
+        }
+      }
+
+      # Placeholder — will be populated with real value when Cloud Scheduler is integrated
+      env {
+        name = "INTERNAL_API_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = var.secret_ids["internal_api_secret"]
             version = "latest"
           }
         }

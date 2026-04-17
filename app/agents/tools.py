@@ -1,42 +1,41 @@
-from app.mock.sample_mock_data import get_mock_sample_requests
+import logging
+from app.repository.tier_config_repository import TierConfigRepository
 
-TIER_MAP = {
-    "Vitamin C Face Massage Serum": "TIER_2",
-    "Brightening Exfoliating Pads": "TIER_2",
-    "Peach Foot Mask": "TIER_3",
-    "Turmeric Cleansing Pads": "TIER_3",
-    "Dummy Shoe Product": "TIER_1",
-    "Melt & Clean Cleansing Balm": "TIER_4",
-    "Kojic Acid Bar Soap": "TIER_4",
-    "Hydrating Hand Mask": "TIER_1",
-}
-
-# Tier 3 minimum thresholds
-TIER_3_THRESHOLDS = {
-    "Peach Foot Mask":         {"min_gmv": 800,  "min_followers": 0,    "min_post_rate": 65},
-    "Turmeric Cleansing Pads": {"min_gmv": 1000, "min_followers": 5000, "min_post_rate": 75},
-    "Marine Clay Mask":        {"min_gmv": 1000, "min_followers": 5000, "min_post_rate": 75},
-    "V-Line Mask":             {"min_gmv": 1000, "min_followers": 5000, "min_post_rate": 65},
-    "Jade Gua Sha":            {"min_gmv": 1000, "min_followers": 5000, "min_post_rate": 75},
-}
-
-# Tier 4 baseline thresholds
-TIER_4_THRESHOLDS = {
-    "Mango Cleansing Balm": {"min_gmv": 1000, "min_followers": 5000, "min_post_rate": 80},
-    "Melt & Clean Cleansing Balm": {"min_gmv": 1000, "min_followers": 5000, "min_post_rate": 80},
-    "Kojic Acid Bar Soap":  {"min_gmv": 1000, "min_followers": 0,    "min_post_rate": 65},
-}
-
-def fetch_sample_by_id(sample_id: str, access_token: str = None, shop_cipher: str = None):
-    responses = get_mock_sample_requests()
-
-    applications = []
-    for item in responses:
-        if item.get("data") and "sample_applications" in item["data"]:
-            applications.extend(item["data"]["sample_applications"])
-
-    return next((a for a in applications if a.get("id") == sample_id), None)
+logger = logging.getLogger(__name__)
 
 
-def get_tier(product_title: str) -> str:
-    return TIER_MAP.get(product_title, "UNKNOWN")
+def fetch_sample_from_db(sample_id: str) -> dict | None:
+    """Fetch the sample application document from sample_analyses Firestore collection."""
+    from app.repository.sample_analysis_repository import SampleAnalysisRepository
+    return SampleAnalysisRepository().get(sample_id)
+
+
+def resolve_tier(org_id: str, username: str, product_id: str) -> tuple[str, dict]:
+    """
+    Determine the tier for a sample request using DB config (O(1) lookups).
+
+    Priority:
+      1. Is the creator on the Tier 1/2 list?  → TIER_1 or TIER_2, no thresholds
+      2. Is the product in the Tier 3/4 config? → TIER_3 or TIER_4 + thresholds
+      3. Neither                                → TIER_5, use global thresholds
+
+    Returns (tier: str, thresholds: dict)
+    """
+    repo = TierConfigRepository()
+
+    # 1. Creator list check — O(1) by composite doc ID
+    creator_entry = repo.get_creator_tier(org_id, username)
+    if creator_entry:
+        logger.info("Creator '%s' matched %s list", username, creator_entry["tier"])
+        return creator_entry["tier"], {}
+
+    # 2. Product config check — O(1) by composite doc ID
+    product_entry = repo.get_product_config(org_id, product_id)
+    if product_entry:
+        logger.info("Product '%s' matched %s config", product_id, product_entry["tier"])
+        return product_entry["tier"], product_entry.get("thresholds") or {}
+
+    # 3. Neither matched → Tier 5 with global thresholds
+    tier5_thresholds = repo.get_tier5_thresholds(org_id)
+    logger.info("No tier match for creator='%s' product='%s' → TIER_5", username, product_id)
+    return "TIER_5", tier5_thresholds

@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
@@ -17,11 +17,16 @@ security = HTTPBearer()
 # Auth dependency — stateless, zero DB calls
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
     """
     Verify the Firebase ID token and return the caller's identity from claims.
     Role and org_id are stored as GCIP custom claims — no Firestore lookup needed.
+
+    SUPER_ADMIN org override: if the request carries an ``X-Active-Org`` header,
+    and the caller is a SUPER_ADMIN, that value replaces the token's own org_id.
+    This lets the super-admin operate in the context of any org without re-issuing tokens.
     """
     try:
         decoded = verify_firebase_token(
@@ -31,11 +36,20 @@ def get_current_user(
     except InvalidTokenException as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
 
+    role = decoded.get("role", "ORG_MEMBER")
+    org_id = decoded.get("org_id", "")
+
+    # Allow SUPER_ADMIN to impersonate any org via X-Active-Org header
+    if role == "SUPER_ADMIN":
+        active_org = request.headers.get("X-Active-Org", "").strip()
+        if active_org:
+            org_id = active_org
+
     return {
         "uid": decoded["uid"],
         "id": decoded["uid"],          # backwards-compat alias used by other routers
-        "org_id": decoded.get("org_id", ""),
-        "role": decoded.get("role", "ORG_MEMBER"),
+        "org_id": org_id,
+        "role": role,
         "email": decoded.get("email", ""),
     }
 

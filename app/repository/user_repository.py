@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from google.cloud import firestore
+from google.cloud.firestore import FieldFilter
 from app.db.firestore import db
 
 
@@ -28,7 +29,7 @@ class UserRepository:
         O(log N) with index.
         """
         docs = (
-            self.col.where("tiktok_open_id", "==", open_id)
+            self.col.where(filter=FieldFilter("tiktok_open_id", "==", open_id))
             .limit(1)
             .stream()
         )
@@ -40,7 +41,7 @@ class UserRepository:
 
     def get_by_email(self, email: str) -> dict | None:
         docs = (
-            self.col.where("email", "==", email.lower().strip())
+            self.col.where(filter=FieldFilter("email", "==", email.lower().strip()))
             .limit(1)
             .stream()
         )
@@ -52,8 +53,8 @@ class UserRepository:
 
     def get_all_by_org(self, org_id: str) -> list[dict]:
         docs = (
-            self.col.where("org_id", "==", org_id)
-            .where("status", "==", "ACTIVE")
+            self.col.where(filter=FieldFilter("org_id", "==", org_id))
+            .where(filter=FieldFilter("status", "==", "ACTIVE"))
             .stream()
         )
         results = []

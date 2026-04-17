@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from google.cloud.firestore import FieldFilter
 from app.db.firestore import db
 
 
@@ -24,5 +25,5 @@ class ProductRepository:
         return data
 
     def get_by_org(self, org_id: str) -> list[dict]:
-        docs = self.col.where("org_id", "==", org_id).stream()
+        docs = self.col.where(filter=FieldFilter("org_id", "==", org_id)).stream()
         return [{**doc.to_dict(), "id": doc.id} for doc in docs]

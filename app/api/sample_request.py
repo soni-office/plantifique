@@ -1,44 +1,47 @@
+import logging
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
-import logging
 
 from app.api.auth_session import get_current_user
-from app.services.tiktok.token_service import TokenService
-from app.services.tiktok.sample_service import TikTokSampleService
-from app.repository.sample_analysis_repository import SampleAnalysisRepository
-from app.repository.creator_repository import CreatorRepository
-from app.repository.product_repository import ProductRepository
-from app.utils.shop_ciphers import shop_cipher
-from app.core.config import settings
+from app.services.sample_analysis_service import SampleAnalysisService
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
-
 logger = logging.getLogger(__name__)
 
 
-@router.get("/search")
-async def search_sample_requests(
-    page_size: int = Query(20),
+# ── List ──────────────────────────────────────────────────────────────────
+
+@router.get("")
+async def list_sample_requests(
+    page_size: int = Query(30, ge=1, le=100),
+    cursor: str | None = Query(None, description="Cursor from previous page's next_cursor"),
     user=Depends(get_current_user),
 ):
-    """Fetch sample requests for this org. Returns mock data when MOCK_TIKTOK=true."""
-    logger.info("Searching sample requests for user=%s org=%s", user["id"], user["org_id"])
-
-    if settings.mock_sample_requests:
-        from app.mock.sample_mock_data import get_mock_sample_requests
-        return get_mock_sample_requests()
-
-    token_service = TokenService()
-    access_token = token_service.get_valid_access_token(user["org_id"])
-    res = shop_cipher(user["org_id"])
-    cipher = res["data"]["shops"][0]["cipher"]
-
-    return TikTokSampleService.search(
-        access_token=access_token,
-        shop_cipher=cipher,
+    """Return a cached page of sample requests from Firestore."""
+    return SampleAnalysisService().list(
+        org_id=user["org_id"],
         page_size=page_size,
+        cursor=cursor,
     )
 
+
+# ── Sync ──────────────────────────────────────────────────────────────────
+
+@router.post("/sync")
+async def sync_sample_requests(user=Depends(get_current_user)):
+    """Pull PENDING sample requests from TikTok and upsert into Firestore."""
+    try:
+        return SampleAnalysisService().sync(
+            org_id=user["org_id"],
+            user_id=user["id"],
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── Evaluate ──────────────────────────────────────────────────────────────
 
 @router.post("/{sample_id}/evaluate")
 async def evaluate_sample_request(
@@ -46,64 +49,29 @@ async def evaluate_sample_request(
     threshold: int = Query(70, description="Minimum score required to accept"),
     user=Depends(get_current_user),
 ):
-    """Manually trigger AI analysis for a sample. Saves result to Firestore."""
-    from app.agents.sample_analyzer.runner import run_sr_agent
-
-    logger.info("Evaluating sample_id=%s for user=%s org=%s", sample_id, user["id"], user["org_id"])
-
-    analysis_repo = SampleAnalysisRepository()
-
+    """Manually trigger AI analysis for a sample (Phase 1 → 2 → 3 → decision)."""
     try:
-        if settings.mock_tiktok:
-            access_token = "mock_access_token"
-            cipher = "mock_cipher"
-        else:
-            token_service = TokenService()
-            access_token = token_service.get_valid_access_token(user["org_id"])
-            res = shop_cipher(user["org_id"])
-            cipher = res["data"]["shops"][0]["cipher"]
-
-        result = run_sr_agent(
-            sample_request_id=sample_id,
-            access_token=access_token,
-            shop_cipher=cipher,
+        return SampleAnalysisService().evaluate(
+            org_id=user["org_id"],
+            sample_id=sample_id,
+            user_id=user["id"],
             threshold=threshold,
         )
-
-        analysis_repo.save_analysis_result(
-            sample_id=sample_id,
-            org_id=user["org_id"],
-            result=result,
-        )
-
-        creator_repo = CreatorRepository()
-        product_repo = ProductRepository()
-
-        if result.get("rich_creator_detail"):
-            creator_id = (
-                result["rich_creator_detail"].get("creator_id")
-                or result["rich_creator_detail"].get("id")
-            )
-            if creator_id:
-                creator_repo.upsert(creator_id=creator_id, org_id=user["org_id"], data=result["rich_creator_detail"])
-
-        if result.get("rich_product_detail") and result["rich_product_detail"].get("id"):
-            product_repo.upsert(
-                product_id=result["rich_product_detail"]["id"],
-                org_id=user["org_id"],
-                data=result["rich_product_detail"],
-            )
-
-        return {"status": "success", "data": result}
-
     except Exception as e:
         logger.error("Error evaluating sample_id=%s: %s", sample_id, e)
-        analysis_repo.mark_failed(sample_id=sample_id, error=str(e))
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── Review status ─────────────────────────────────────────────────────────
 
 class ReviewStatusBody(BaseModel):
+    # Internal status saved in our Firestore DB (e.g. "APPROVED", "REJECTED")
     status: str
+    # Maps directly to TikTok's review_result field: "APPROVE" or "REJECT"
+    review_result: str
+    # Required by TikTok when review_result is "REJECT".
+    # One of: NOT_MATCH | OFFLINE | OUT_OF_STOCK | OTHER
+    reject_reason: Optional[str] = None
 
 
 @router.patch("/{sample_id}/review-status")
@@ -112,15 +80,63 @@ async def update_review_status(
     body: ReviewStatusBody,
     user=Depends(get_current_user),
 ):
-    """Update the human review decision for a sample."""
+    """
+    Update the human review decision for a sample.
+
+    This does TWO things in sequence:
+      1. Saves the review status to our internal Firestore DB.
+      2. Calls TikTok's official Seller Review API so the decision
+         is immediately reflected on the live TikTok Shop as well.
+    """
     try:
+        # Step 1: Save to our internal Firestore DB first
         repo = SampleAnalysisRepository()
         repo.set_review_status(sample_id, body.status)
-        logger.info("Review status updated: sample_id=%s status=%s by user=%s", sample_id, body.status, user["id"])
-        return {"status": "success", "sample_id": sample_id, "review_status": body.status}
+        logger.info(
+            "Review status saved to DB: sample_id=%s status=%s by=%s",
+            sample_id, body.status, user["id"],
+        )
+
+        # Step 2: Sync the decision to TikTok Shop via official API
+        try:
+            access_token, cipher = _get_token_and_cipher(user["org_id"])
+            tiktok_response = TikTokSampleService.review(
+                access_token=access_token,
+                shop_cipher=cipher,
+                application_id=sample_id,
+                review_result=body.review_result,
+                reject_reason=body.reject_reason,
+            )
+            logger.info(
+                "TikTok Shop review synced: sample_id=%s review_result=%s tiktok_response=%s",
+                sample_id, body.review_result, tiktok_response,
+            )
+        except ValueError as ve:
+            raise HTTPException(status_code=422, detail=str(ve))
+        except Exception as tiktok_err:
+            logger.error(
+                "TikTok review sync failed for sample_id=%s: %s",
+                sample_id, tiktok_err,
+            )
+            return {
+                "status": "partial_success",
+                "sample_id": sample_id,
+                "review_status": body.status,
+                "warning": f"Saved to DB but TikTok sync failed: {tiktok_err}",
+            }
+
+        return {
+            "status": "success",
+            "sample_id": sample_id,
+            "review_status": body.status,
+            "tiktok_synced": True,
+        }
+
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+
+# ── Feedback ──────────────────────────────────────────────────────────────
 
 class FeedbackBody(BaseModel):
     rating: str
@@ -135,22 +151,25 @@ async def submit_feedback(
 ):
     """Submit thumbs up/down feedback for an AI analysis."""
     try:
-        repo = SampleAnalysisRepository()
-        record = repo.set_feedback(sample_id, body.rating, body.comment)
-        return {"status": "success", "sample_id": sample_id, "feedback": record}
+        return SampleAnalysisService().submit_feedback(
+            org_id=user["org_id"],
+            sample_id=sample_id,
+            rating=body.rating,
+            comment=body.comment,
+        )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+
+# ── Review state ──────────────────────────────────────────────────────────
 
 @router.get("/{sample_id}/review")
 async def get_review_state(
     sample_id: str,
     user=Depends(get_current_user),
 ):
-    """Fetch the current review status and feedback for a sample."""
-    repo = SampleAnalysisRepository()
-    return {
-        "sample_id": sample_id,
-        "review_status": repo.get_review_status(sample_id),
-        "feedback": repo.get_feedback(sample_id),
-    }
+    """Fetch the current review status and feedback for a sample. Cached per item."""
+    return SampleAnalysisService().get_review_state(
+        org_id=user["org_id"],
+        sample_id=sample_id,
+    )

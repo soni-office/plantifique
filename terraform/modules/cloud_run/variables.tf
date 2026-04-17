@@ -66,9 +66,33 @@ variable "want_to_use_rag" {
 }
 
 variable "vertex_model" {
-  description = "Vertex AI model name (e.g. gemini-2.0-flash-001)"
+  description = "Vertex AI model name (e.g. gemini-2.5-flash)"
   type        = string
   default     = "gemini-2.5-flash"
+}
+
+variable "phase4_gcs_bucket" {
+  description = "GCS bucket name for Phase 4 video uploads (Vertex AI multimodal)"
+  type        = string
+  # No default — must be passed explicitly so it always matches the actual bucket name
+}
+
+variable "mock_sample_requests" {
+  description = "Use mock sample request data instead of live TikTok API"
+  type        = bool
+  default     = false
+}
+
+variable "cache_default_ttl" {
+  description = "Default Redis cache TTL in seconds"
+  type        = number
+  default     = 300
+}
+
+variable "timeout_seconds" {
+  description = "Cloud Run request timeout in seconds (Phase 4 video analysis can take 60-120s)"
+  type        = number
+  default     = 600
 }
 
 # config for dev env - low
@@ -85,13 +109,13 @@ variable "max_instances" {
 }
 
 variable "memory" {
-  description = "Container memory limit"
+  description = "Container memory limit (Phase 4 yt-dlp + video buffers need >= 4Gi)"
   type        = string
-  default     = "1Gi"
+  default     = "4Gi"
 }
 
 variable "cpu" {
   description = "Container CPU limit"
   type        = string
-  default     = "1"
+  default     = "2"
 }
