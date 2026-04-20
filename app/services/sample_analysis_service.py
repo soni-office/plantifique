@@ -135,12 +135,16 @@ class SampleAnalysisService:
         """
         from app.agents.sample_analyzer.runner import run_sr_agent
 
-        # existing = self.repo.get(sample_id)
-        # if existing and existing.get("analysis_status") == "COMPLETED":
-        #     logger.warning(
-        #         "sample_id=%s already analysed, skipping re-evaluation", sample_id
-        #     )
-        #     return {"status": "skipped", "message": "Analysis already exists for this sample_id", "data": SampleAnalysis.from_dict(existing).get_analysis_result()}
+        existing = self.repo.get(sample_id)
+        if existing and existing.get("analysis_status") in ("QUEUED", "COMPLETED"):
+            logger.warning(
+                "sample_id=%s is already %s — skipping duplicate analysis",
+                sample_id, existing.get("analysis_status"),
+            )
+            return {
+                "status": "skipped",
+                "message": f"Analysis is already {existing.get('analysis_status').lower()}. Cannot run again.",
+            }
 
         logger.info(
             "Evaluating sample_id=%s org=%s by=%s", sample_id, org_id, user_id

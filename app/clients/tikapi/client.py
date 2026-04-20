@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Optional
 
 import requests
@@ -50,6 +51,19 @@ class TikApiClient:
                     params=params,
                     timeout=current_timeout,
                 )
+
+                # 502 Bad Gateway: transient TikAPI server hiccup — retry once after 2s
+                if resp.status_code == 502:
+                    if attempt == 1:
+                        logger.warning(
+                            "[TikAPI] GET %s returned 502 Bad Gateway — retrying once in 3s",
+                            path,
+                        )
+                        time.sleep(2)
+                        continue
+                    logger.error("[TikAPI] GET %s returned 502 again on retry — giving up", path)
+                    return None
+
                 resp.raise_for_status()
                 return resp.json()
 
