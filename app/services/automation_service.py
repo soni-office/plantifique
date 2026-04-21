@@ -81,8 +81,10 @@ class AutomationService:
             # CRITICAL: Sync full creator data (username, product_id, etc.) BEFORE processing.
             # This prevents the AI from crashing when it tries to look up an empty username in Firestore.
             self.analysis_repo.upsert_from_tiktok(org_id=self.org_id, application=sample)
-                
+
             self.analysis_repo.mark_queued(sample_id=sample_id, org_id=self.org_id)
+            #  Clear Redis list cache immediately so a page refresh shows QUEUED right away
+            cache.invalidate_prefix(keys.sample_list_prefix(self.org_id))
             to_process.append(sample_id)
             retry_counts[sample_id] = retry_count
 

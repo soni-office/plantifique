@@ -151,6 +151,8 @@ class SampleAnalysisService:
         )
         access_token, cipher = self._get_token_and_cipher(org_id)
         self.repo.mark_queued(sample_id=sample_id, org_id=org_id)
+        #  Clear Redis list cache immediately so a page refresh shows QUEUED right away
+        cache.invalidate_prefix(keys.sample_list_prefix(org_id))
 
         result = run_sr_agent(
             sample_request_id=sample_id,
