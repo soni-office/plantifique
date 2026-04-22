@@ -23,4 +23,5 @@ COPY . .
 
 # Run Uvicorn when the container starts. 
 # Cloud Run automatically injects the PORT environment variable.
+# TODO : --workers 3
 CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT

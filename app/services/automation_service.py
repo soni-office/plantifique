@@ -103,10 +103,10 @@ class AutomationService:
             else:
                 failed += 1
                 
-            # Sleep 15 seconds after every payload, EXCEPT for the very last one.
+            # Sleep 10 seconds after every payload, EXCEPT for the very last one.
             if i < len(to_process) - 1:
-                logger.info("[AutomationService] Taking a 15-second gap to prevent rate limiting...")
-                await asyncio.sleep(15)
+                logger.info("[AutomationService] Taking a 10-second gap to prevent rate limiting...")
+                await asyncio.sleep(10)
 
         # Force the frontend to refresh the list by clearing the cache
         cache.invalidate_prefix(keys.sample_list_prefix(self.org_id))

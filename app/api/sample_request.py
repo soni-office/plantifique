@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from functools import lru_cache
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
@@ -12,6 +13,10 @@ from app.clients.tiktok.sample_client import TikTokSampleClient
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 logger = logging.getLogger(__name__)
 
+@lru_cache()
+def get_sample_service() -> SampleAnalysisService:
+    return SampleAnalysisService()
+
 
 # ── List ──────────────────────────────────────────────────────────────────
 
@@ -20,9 +25,10 @@ async def list_sample_requests(
     page_size: int = Query(30, ge=1, le=100),
     cursor: str | None = Query(None, description="Cursor from previous page's next_cursor"),
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_service),
 ):
     """Return a cached page of sample requests from Firestore."""
-    return await SampleAnalysisService().list(
+    return await service.list(
         org_id=user["org_id"],
         page_size=page_size,
         cursor=cursor,
@@ -32,10 +38,13 @@ async def list_sample_requests(
 # ── Sync ──────────────────────────────────────────────────────────────────
 
 @router.post("/sync")
-def sync_sample_requests(user=Depends(get_current_user)):
+def sync_sample_requests(
+    user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_service),
+):
     """Pull PENDING sample requests from TikTok and upsert into Firestore."""
     try:
-        return SampleAnalysisService().sync(
+        return service.sync(
             org_id=user["org_id"],
             user_id=user["id"],
         )
@@ -50,10 +59,11 @@ def evaluate_sample_request(
     sample_id: str,
     threshold: int = Query(70, description="Minimum score required to accept"),
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_service),
 ):
     """Manually trigger AI analysis for a sample (Phase 1 → 2 → 3 → decision)."""
     try:
-        return SampleAnalysisService().evaluate(
+        return service.evaluate(
             org_id=user["org_id"],
             sample_id=sample_id,
             user_id=user["id"],
@@ -92,7 +102,7 @@ def update_review_status(
     """
     try:
         # Step 1: Save to our internal Firestore DB first
-        repo = SampleAnalysisRepository()
+        service = get_sample_service()  # Use the cached singleton service instance
         # repo.set_review_status(sample_id, body.status)
         logger.info(
             "Review status saved to DB: sample_id=%s status=%s by=%s",
@@ -101,7 +111,8 @@ def update_review_status(
 
         # Step 2: Sync the decision to TikTok Shop via official API
         try:
-            access_token, cipher = SampleAnalysisService()._get_token_and_cipher(user["org_id"])
+            # Reusing the singleton instead of SampleAnalysisService()
+            access_token, cipher = service._get_token_and_cipher(user["org_id"])
             tiktok_response = TikTokSampleClient.review(
                 access_token=access_token,
                 shop_cipher=cipher,
@@ -150,10 +161,11 @@ def submit_feedback(
     sample_id: str,
     body: FeedbackBody,
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_service),
 ):
     """Submit thumbs up/down feedback for an AI analysis."""
     try:
-        return SampleAnalysisService().submit_feedback(
+        return service.submit_feedback(
             org_id=user["org_id"],
             sample_id=sample_id,
             rating=body.rating,
@@ -169,9 +181,10 @@ def submit_feedback(
 async def get_review_state(
     sample_id: str,
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_service),
 ):
     """Fetch the current review status and feedback for a sample. Cached per item."""
-    return await SampleAnalysisService().get_review_state(
+    return await service.get_review_state(
         org_id=user["org_id"],
         sample_id=sample_id,
     )
