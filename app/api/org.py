@@ -32,4 +32,4 @@ async def create_org(
 @router.get("")
 async def list_orgs(_caller=Depends(require_role("SUPER_ADMIN"))):
     """List all active organisations. SUPER_ADMIN only."""
-    return {"orgs": OrgService().list_all()}
+    return {"orgs": await OrgService().list_all()}

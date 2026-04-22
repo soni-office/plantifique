@@ -22,7 +22,7 @@ class CreatorService:
         cipher = shop_cipher(org_id)["data"]["shops"][0]["cipher"]
         return access_token, cipher
 
-    def search(
+    async def search(
         self,
         org_id: str,
         keyword: Optional[str] = None,
@@ -39,13 +39,13 @@ class CreatorService:
                 page_size=page_size,
             )
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.creator_search(org_id, keyword, page_size),
             ttl.CREATOR_SEARCH,
             _fetch,
         )
 
-    def get_detail(self, org_id: str, creator_open_id: str) -> dict:
+    async def get_detail(self, org_id: str, creator_open_id: str) -> dict:
         """Fetch creator detail. Cached per org + creator_open_id."""
         def _fetch():
             at, cipher = self._get_token_and_cipher(org_id)
@@ -56,7 +56,7 @@ class CreatorService:
                 creator_open_id=creator_open_id,
             )
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.creator_detail(org_id, creator_open_id),
             ttl.CREATOR_DETAIL,
             _fetch,

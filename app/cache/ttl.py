@@ -32,6 +32,9 @@ SHOP_PRODUCTS  = _ttl("CACHE_TTL_SHOP_PRODUCTS",   600)  # 10 min
 # ── Tier config (Firestore) ───────────────────────────────────────────────
 TIER_CONFIG    = _ttl("CACHE_TTL_TIER_CONFIG",     300)  # 5 min
 
+# ── Org list (Firestore) ───────────────────────────────────────────────
+ORG_LIST       = _ttl("CACHE_TTL_ORG_LIST",        3600)  # 1 hr
+
 # ── Sample requests (Firestore) ───────────────────────────────────────────
 # Both are also invalidated explicitly:
 #   - Sync → invalidates entire org's sample list

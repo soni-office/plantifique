@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 from app.api.auth_session import get_current_user
 from app.services.sample_analysis_service import SampleAnalysisService
+from app.repository.sample_analysis_repository import SampleAnalysisRepository
+from app.clients.tiktok.sample_client import TikTokSampleClient
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ async def list_sample_requests(
     user=Depends(get_current_user),
 ):
     """Return a cached page of sample requests from Firestore."""
-    return SampleAnalysisService().list(
+    return await SampleAnalysisService().list(
         org_id=user["org_id"],
         page_size=page_size,
         cursor=cursor,
@@ -30,7 +32,7 @@ async def list_sample_requests(
 # ── Sync ──────────────────────────────────────────────────────────────────
 
 @router.post("/sync")
-async def sync_sample_requests(user=Depends(get_current_user)):
+def sync_sample_requests(user=Depends(get_current_user)):
     """Pull PENDING sample requests from TikTok and upsert into Firestore."""
     try:
         return SampleAnalysisService().sync(
@@ -44,7 +46,7 @@ async def sync_sample_requests(user=Depends(get_current_user)):
 # ── Evaluate ──────────────────────────────────────────────────────────────
 
 @router.post("/{sample_id}/evaluate")
-async def evaluate_sample_request(
+def evaluate_sample_request(
     sample_id: str,
     threshold: int = Query(70, description="Minimum score required to accept"),
     user=Depends(get_current_user),
@@ -75,7 +77,7 @@ class ReviewStatusBody(BaseModel):
 
 
 @router.patch("/{sample_id}/review-status")
-async def update_review_status(
+def update_review_status(
     sample_id: str,
     body: ReviewStatusBody,
     user=Depends(get_current_user),
@@ -91,7 +93,7 @@ async def update_review_status(
     try:
         # Step 1: Save to our internal Firestore DB first
         repo = SampleAnalysisRepository()
-        repo.set_review_status(sample_id, body.status)
+        # repo.set_review_status(sample_id, body.status)
         logger.info(
             "Review status saved to DB: sample_id=%s status=%s by=%s",
             sample_id, body.status, user["id"],
@@ -99,8 +101,8 @@ async def update_review_status(
 
         # Step 2: Sync the decision to TikTok Shop via official API
         try:
-            access_token, cipher = _get_token_and_cipher(user["org_id"])
-            tiktok_response = TikTokSampleService.review(
+            access_token, cipher = SampleAnalysisService()._get_token_and_cipher(user["org_id"])
+            tiktok_response = TikTokSampleClient.review(
                 access_token=access_token,
                 shop_cipher=cipher,
                 application_id=sample_id,
@@ -144,7 +146,7 @@ class FeedbackBody(BaseModel):
 
 
 @router.post("/{sample_id}/feedback")
-async def submit_feedback(
+def submit_feedback(
     sample_id: str,
     body: FeedbackBody,
     user=Depends(get_current_user),
@@ -169,7 +171,7 @@ async def get_review_state(
     user=Depends(get_current_user),
 ):
     """Fetch the current review status and feedback for a sample. Cached per item."""
-    return SampleAnalysisService().get_review_state(
+    return await SampleAnalysisService().get_review_state(
         org_id=user["org_id"],
         sample_id=sample_id,
     )

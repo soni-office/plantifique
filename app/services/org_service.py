@@ -3,7 +3,7 @@ Organisation management — create, list, validate.
 """
 import logging
 import re
-
+from app.cache import cache, keys, ttl
 from app.repository.org_repository import OrgRepository
 
 logger = logging.getLogger(__name__)
@@ -44,5 +44,9 @@ class OrgService:
         logger.info("Org created org_id=%s name=%s", org_id, name)
         return org
 
-    def list_all(self) -> list:
-        return self.repo.get_all()
+    async def list_all(self) -> list:
+        return await cache.async_cache_or_fetch(
+            keys.orgs_list(),
+            ttl.ORG_LIST,
+            lambda: self.repo.get_all(),
+        )

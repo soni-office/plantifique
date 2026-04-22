@@ -1,24 +1,39 @@
-from app.core.config import settings
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.api import sample_request
-from app.api import creator
-from app.api import auth_session
-from app.api import agent
-from app.api import product
-from app.api import internal
-from app.api import org
-from app.api import testing
-from app.api import tier_config
-from app.api.auth_tiktokshop import router as tiktok_auth_router
+import time
 import logging
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings
+from app.api import sample_request, creator, auth_session, agent, product, internal, org, testing, tier_config
+from app.api.auth_tiktokshop import router as tiktok_auth_router
 
 # This configures all your child loggers at once
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)s:     %(name)s - %(message)s"
+    format="%(levelname)s: [w%(process)d]  %(name)s - %(message)s"
+    # format="%(levelname)s: [w%(process)d] %(asctime)s %(name)s - %(message)s",
+    # datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+logger = logging.getLogger("api.timing")
+
 app = FastAPI()
+
+
+# @app.middleware("http")
+# async def log_request_timing(request: Request, call_next):
+#     start = time.perf_counter()
+#     response = await call_next(request)
+#     elapsed_ms = (time.perf_counter() - start) * 1000
+#     logger.info(
+#         "%s %s → %d  [%.1f ms]",
+#         request.method,
+#         request.url.path,
+#         response.status_code,
+#         elapsed_ms,
+#     )
+#     return response
 
 origins = settings.allowed_origins
 

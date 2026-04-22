@@ -20,6 +20,7 @@ Async API  (use from async FastAPI route handlers)
   async_invalidate(*keys)
   async_invalidate_prefix(prefix)
 """
+import asyncio
 import json
 import logging
 from typing import Any, Callable, Awaitable
@@ -174,19 +175,25 @@ def invalidate_prefix(prefix: str) -> int:
 async def async_cache_or_fetch(
     key: str,
     ttl: int,
-    fn: Callable[[], Awaitable[Any]],
+    fn: Callable[[], Any],
 ) -> Any:
     """
-    Async version of cache_or_fetch. fn must be a zero-argument *async* callable.
+    Async version of cache_or_fetch.
 
-    Use this from async FastAPI route handlers so Redis I/O never blocks the
-    event loop.
+    fn can be either a sync or async zero-argument callable:
+      - async fn  → awaited directly
+      - sync fn   → run in the default thread-pool executor so it never
+                    blocks the event loop (same pool FastAPI uses for
+                    sync route handlers)
 
-    Example:
+    Use this from async FastAPI route handlers so both Redis I/O and the
+    underlying fetch never block the event loop.
+
+    Example (sync lambda — most common case):
         result = await async_cache_or_fetch(
             keys.product_detail(org_id, product_id),
             ttl.PRODUCT_DETAIL,
-            lambda: some_async_fetch_fn(org_id, product_id),
+            lambda: TikTokProductClient.get_by_id(at, cipher, product_id),
         )
     """
     cached = await _aget(key)
@@ -195,7 +202,11 @@ async def async_cache_or_fetch(
         return cached
 
     logger.info("Cache MISS %s", key)
-    result = await fn()
+    loop = asyncio.get_running_loop()
+    if asyncio.iscoroutinefunction(fn):
+        result = await fn()
+    else:
+        result = await loop.run_in_executor(None, fn)
     if result is not None:
         await _aset(key, result, ttl)
     return result

@@ -15,7 +15,7 @@ async def search_products(
     user=Depends(get_current_user),
 ):
     """Search shop products. Cached per org + page_size."""
-    return ProductService().search(
+    return await ProductService().search(
         org_id=user["org_id"],
         page_size=page_size,
     )
@@ -27,7 +27,7 @@ async def get_product(
     user=Depends(get_current_user),
 ):
     """Fetch product detail. Cached per org + product_id."""
-    return ProductService().get_detail(
+    return await ProductService().get_detail(
         org_id=user["org_id"],
         product_id=product_id,
     )

@@ -16,7 +16,7 @@ async def get_creators(
     user=Depends(get_current_user),
 ):
     """Search marketplace creators. Cached per org + keyword + page_size."""
-    return CreatorService().search(
+    return await CreatorService().search(
         org_id=user["org_id"],
         keyword=keyword,
         page_size=page_size,
@@ -24,12 +24,12 @@ async def get_creators(
 
 
 @router.get("/{creator_open_id}")
-def get_creator_detail(
+async def get_creator_detail(
     creator_open_id: str,
     user=Depends(get_current_user),
 ):
     """Fetch creator detail. Cached per org + creator_open_id."""
-    return CreatorService().get_detail(
+    return await CreatorService().get_detail(
         org_id=user["org_id"],
         creator_open_id=creator_open_id,
     )

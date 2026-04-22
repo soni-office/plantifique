@@ -72,3 +72,9 @@ def sample_list_prefix(org_id: str) -> str:
 
 def sample_item(org_id: str, sample_id: str) -> str:
     return f"samples:item:{org_id}:{sample_id}"
+
+
+# ------- ORG INFO (Firestore) ────────────────────────────────────────────
+def orgs_list() -> str:
+    # works only for super_admin listing orgs, not org-scoped queries
+    return "orgs:list"

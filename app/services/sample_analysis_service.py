@@ -35,7 +35,7 @@ class SampleAnalysisService:
 
     # ── List ──────────────────────────────────────────────────────────────
 
-    def list(self, org_id: str, page_size: int = 30, cursor: Optional[str] = None) -> dict:
+    async def list(self, org_id: str, page_size: int = 30, cursor: Optional[str] = None) -> dict:
         """Cache-first paginated list for an org."""
         def _fetch():
             items, next_cursor = self.repo.list_for_org(
@@ -49,7 +49,7 @@ class SampleAnalysisService:
                 "has_more": next_cursor is not None,
             }
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.sample_list(org_id, page_size, cursor),
             ttl.SAMPLE_LIST,
             _fetch,
@@ -214,7 +214,7 @@ class SampleAnalysisService:
 
     # ── Review state (cached) ─────────────────────────────────────────────
 
-    def get_review_state(self, org_id: str, sample_id: str) -> dict:
+    async def get_review_state(self, org_id: str, sample_id: str) -> dict:
         """Cache-first fetch of review status + feedback for a sample."""
         def _fetch():
             doc = self.repo.get(sample_id)
@@ -233,7 +233,7 @@ class SampleAnalysisService:
                 },
             }
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.sample_item(org_id, sample_id),
             ttl.SAMPLE_ITEM,
             _fetch,

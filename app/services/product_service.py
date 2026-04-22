@@ -51,7 +51,7 @@ class ProductService:
         cipher = shop_cipher(org_id)["data"]["shops"][0]["cipher"]
         return access_token, cipher
 
-    def search(self, org_id: str, page_size: int = 20) -> dict:
+    async def search(self, org_id: str, page_size: int = 20) -> dict:
         """Search shop products. Cached per org + page_size."""
         def _fetch():
             at, cipher = self._get_token_and_cipher(org_id)
@@ -62,13 +62,13 @@ class ProductService:
                 page_size=page_size,
             )
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.product_search(org_id, page_size),
             ttl.PRODUCT_SEARCH,
             _fetch,
         )
 
-    def get_detail(self, org_id: str, product_id: str) -> dict:
+    async def get_detail(self, org_id: str, product_id: str) -> dict:
         """Fetch product detail. Cached per org + product_id."""
         def _fetch():
             at, cipher = self._get_token_and_cipher(org_id)
@@ -79,13 +79,13 @@ class ProductService:
                 product_id=product_id,
             )
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.product_detail(org_id, product_id),
             ttl.PRODUCT_DETAIL,
             _fetch,
         )
 
-    def get_shop_products_shaped(self, org_id: str, page_size: int = 50) -> list:
+    async def get_shop_products_shaped(self, org_id: str, page_size: int = 50) -> list:
         """
         Fetch live shop products and return them in UI picker shape.
         Cached per org + page_size.
@@ -100,7 +100,7 @@ class ProductService:
             raw = res.get("data", {}).get("products") or []
             return [shape_product(p) for p in raw]
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.shop_products(org_id, page_size),
             ttl.SHOP_PRODUCTS,
             _fetch,
