@@ -119,6 +119,9 @@ def update_review_status(
                 "TikTok Shop review synced: sample_id=%s review_result=%s tiktok_response=%s",
                 sample_id, body.review_result, tiktok_response,
             )
+            # Mark as processed on TikTok Shop — stamps processed_on_shop_at and
+            # delete_at (now + 1 day) so the TTL cleanup picks it up automatically.
+            service.repo.mark_processed_on_shop({sample_id})
         except ValueError as ve:
             raise HTTPException(status_code=422, detail=str(ve))
         except Exception as tiktok_err:

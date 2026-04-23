@@ -8,6 +8,7 @@ GCS bucket lifecycle rule (set once in console): Age = 2 days → Delete.
 Videos are also deleted immediately after analysis completes.
 """
 import logging
+import time
 import tempfile
 import os
 import uuid
@@ -286,12 +287,35 @@ def run_phase4_analysis(
         model = GenerativeModel(settings.vertex_model)
 
         contents = video_parts + [Part.from_text(prompt_text)]
-        response = model.generate_content(
-            contents,
-            generation_config=GenerationConfig(temperature=1.0),
-        )
+
+        # Retry strategy for 429 Resource Exhausted errors.
+        RETRY_WAITS = [2, 4]  # waits in seconds before each retry attempt
+        response = None
+        for attempt in range(len(RETRY_WAITS) + 1):
+            try:
+                response = model.generate_content(
+                    contents,
+                    generation_config=GenerationConfig(temperature=1.0),
+                )
+                break  # success — exit retry loop
+            except Exception as retry_exc:
+                is_quota_error = (
+                    "429" in str(retry_exc)
+                    or "RESOURCE_EXHAUSTED" in str(retry_exc).upper()
+                )
+                if is_quota_error and attempt < len(RETRY_WAITS):
+                    wait_sec = RETRY_WAITS[attempt]
+                    logger.warning(
+                        "[Phase4] 429 quota hit on attempt %d/%d — waiting %ds before retry.",
+                        attempt + 1, len(RETRY_WAITS) + 1, wait_sec,
+                    )
+                    time.sleep(wait_sec)
+                else:
+                    # Not a quota error, or we have exhausted all retries
+                    raise
+
         raw_text = response.text
-        print(f"[Phase4] ✅ Gemini video analysis complete.")
+        logger.info("[Phase4] Gemini video analysis complete.")
 
         # Parse structured output using LangChain wrapper
         structured_llm = ChatGoogleGenerativeAI(
