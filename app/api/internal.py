@@ -44,9 +44,9 @@ async def trigger_sample_processing(
 
     try:
         service = AutomationService(org_id=settings.org_id)
-        # 1. Runs SYNCHRONOUSLY to prevent Cloud Run from killing the background CPU
-        # 2. Hard limits to exactly 3 jobs per run 
-        summary = await service.process_pending(limit=3)
+        # Runs SYNCHRONOUSLY — Cloud Run keeps the request alive until done.
+        # Batch limit comes from BATCH_PROCESS_SAMPLE_REQUESTS_LIMIT env var (default 5).
+        summary = await service.process_pending()
         
         logger.info(
             "[Scheduler] Processing complete: processed=%d skipped=%d failed=%d",

@@ -95,7 +95,10 @@ SECRETS="JWT_SECRET_KEY=plantifique-${ENV}-jwt-secret-key:latest,\
 APP_KEY=plantifique-${ENV}-app-key:latest,\
 APP_SECRET=plantifique-${ENV}-app-secret:latest,\
 TIKTOK_TOKEN_ENCRYPTION_KEY=plantifique-${ENV}-tiktok-encryption-key:latest,\
-FIREBASE_WEB_API_KEY=plantifique-${ENV}-firebase-web-api-key:latest"
+FIREBASE_WEB_API_KEY=plantifique-${ENV}-firebase-web-api-key:latest,\
+TIKAPI_KEY=plantifique-${ENV}-tikapi-key:latest,\
+REDIS_URL=plantifique-${ENV}-redis-url:latest,\
+INTERNAL_API_SECRET=plantifique-${ENV}-internal-api-secret:latest"
 
 # Non-sensitive env vars (env-specific)
 if [[ "$ENV" == "dev" ]]; then
@@ -107,8 +110,8 @@ if [[ "$ENV" == "dev" ]]; then
   WANT_TO_USE_RAG="true"
   MIN_INSTANCES=0
   MAX_INSTANCES=2
-  MEMORY="1Gi"
-  CPU="1"
+  MEMORY="4Gi"
+  CPU="2"
 else
   FRONTEND_URL="https://tiktok-ai-agent-488417.web.app"
   EXTRA_CORS_ORIGINS="https://tiktok-ai-agent-488417.firebaseapp.com"
@@ -133,7 +136,8 @@ JWT_EXP_MINUTES=60,\
 AUTH_URL=https://auth.tiktok-shops.com/oauth/authorize,\
 TOKEN_URL=https://auth.tiktok-shops.com/api/v2/token/get,\
 VERTEX_MODEL=$VERTEX_MODEL,\
-FIREBASE_TENANT_ID=$FIREBASE_TENANT_ID"
+FIREBASE_TENANT_ID=$FIREBASE_TENANT_ID,\
+BATCH_PROCESS_SAMPLE_REQUESTS_LIMIT=5"
 
 gcloud run deploy "$SERVICE_NAME" \
   --image="$IMAGE" \

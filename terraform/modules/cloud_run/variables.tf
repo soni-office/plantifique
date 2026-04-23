@@ -89,6 +89,12 @@ variable "cache_default_ttl" {
   default     = 300
 }
 
+variable "batch_process_limit" {
+  description = "Max samples AutomationService processes per scheduler run (BATCH_PROCESS_SAMPLE_REQUESTS_LIMIT)"
+  type        = number
+  default     = 5
+}
+
 variable "timeout_seconds" {
   description = "Cloud Run request timeout in seconds (Phase 4 video analysis can take 60-120s)"
   type        = number

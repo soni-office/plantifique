@@ -124,6 +124,9 @@ class Settings:
     # TikAPI (creator video & profile enrichment)
     tikapi_key: str = os.getenv('TIKAPI_KEY', '')
 
+    # Batch processing limit for sample requests in the AutomationService. Set via env var for easy tuning without code changes. Batch processing is performed by the scheduler.
+    batch_process_sample_requests_limit: int = int(os.getenv('BATCH_PROCESS_SAMPLE_REQUESTS_LIMIT', 5))
+    
     # -------------------------------------------------------------------------
     # Computed properties
     # -------------------------------------------------------------------------

@@ -29,7 +29,9 @@ _async_pool: Optional[aioredis.ConnectionPool] = None
 
 _POOL_KWARGS = dict(
     decode_responses=True,
-    max_connections=8,          # 8 per worker × 3 workers = 24 total, safe for Upstash free tier (30 limit)
+    # 2 workers × 2 pools (sync + async) × 6 = 24 total connections — safely under Upstash free tier (30 limit).
+    # If you add more workers or upgrade Upstash, raise this accordingly.
+    max_connections=6,
     socket_connect_timeout=2,   # fail fast on bad URL
     socket_timeout=2,
 )

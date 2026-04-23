@@ -21,7 +21,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the rest of your application code
 COPY . .
 
-# Run Uvicorn when the container starts. 
+# Run Uvicorn when the container starts.
 # Cloud Run automatically injects the PORT environment variable.
-# TODO : --workers 3
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# 2 workers = 2 separate OS processes, each on its own CPU core.
+# Each worker gets its own Redis connection pools (max_connections=6 each),
+# so total Redis connections = 2 workers × 2 pools × 6 = 24, under Upstash free-tier limit of 30.
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
