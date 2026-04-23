@@ -120,3 +120,7 @@ class TikApiClient:
         if not data:
             return []
         return data.get("comments") or []
+
+
+# Module-level singleton — requests.Session (connection pool) created once per worker
+tikapi_client = TikApiClient()

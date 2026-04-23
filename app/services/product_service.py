@@ -2,9 +2,10 @@
 Product search and detail — token management + caching + payload shaping.
 """
 import logging
+from functools import lru_cache
 
 from app.clients.tiktok.product_client import TikTokProductClient
-from app.services.token_service import TokenService
+from app.services.token_service import get_token_service
 from app.utils.shop_ciphers import shop_cipher
 from app.cache import cache, keys, ttl
 
@@ -44,7 +45,7 @@ def shape_product(p: dict) -> dict:
 class ProductService:
 
     def __init__(self):
-        self.token_service = TokenService()
+        self.token_service = get_token_service()
 
     def _get_token_and_cipher(self, org_id: str) -> tuple[str, str]:
         access_token = self.token_service.get_valid_access_token(org_id)
@@ -105,3 +106,8 @@ class ProductService:
             ttl.SHOP_PRODUCTS,
             _fetch,
         )
+
+
+@lru_cache()
+def get_product_service() -> "ProductService":
+    return ProductService()

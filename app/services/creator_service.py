@@ -2,10 +2,11 @@
 Creator search and detail — token management + caching.
 """
 import logging
+from functools import lru_cache
 from typing import Optional
 
 from app.clients.tiktok.creator_client import TikTokCreatorClient
-from app.services.token_service import TokenService
+from app.services.token_service import get_token_service
 from app.utils.shop_ciphers import shop_cipher
 from app.cache import cache, keys, ttl
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class CreatorService:
 
     def __init__(self):
-        self.token_service = TokenService()
+        self.token_service = get_token_service()
 
     def _get_token_and_cipher(self, org_id: str) -> tuple[str, str]:
         access_token = self.token_service.get_valid_access_token(org_id)
@@ -61,3 +62,8 @@ class CreatorService:
             ttl.CREATOR_DETAIL,
             _fetch,
         )
+
+
+@lru_cache()
+def get_creator_service() -> "CreatorService":
+    return CreatorService()

@@ -1,21 +1,16 @@
 import logging
 from typing import Optional
-from functools import lru_cache
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from app.api.auth_session import get_current_user
-from app.services.sample_analysis_service import SampleAnalysisService
+from app.services.sample_analysis_service import SampleAnalysisService, get_sample_analysis_service
 from app.repository.sample_analysis_repository import SampleAnalysisRepository
 from app.clients.tiktok.sample_client import TikTokSampleClient
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 logger = logging.getLogger(__name__)
-
-@lru_cache()
-def get_sample_service() -> SampleAnalysisService:
-    return SampleAnalysisService()
 
 
 # ── List ──────────────────────────────────────────────────────────────────
@@ -25,7 +20,7 @@ async def list_sample_requests(
     page_size: int = Query(30, ge=1, le=100),
     cursor: str | None = Query(None, description="Cursor from previous page's next_cursor"),
     user=Depends(get_current_user),
-    service: SampleAnalysisService = Depends(get_sample_service),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Return a cached page of sample requests from Firestore."""
     return await service.list(
@@ -40,7 +35,7 @@ async def list_sample_requests(
 @router.post("/sync")
 def sync_sample_requests(
     user=Depends(get_current_user),
-    service: SampleAnalysisService = Depends(get_sample_service),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Pull PENDING sample requests from TikTok and upsert into Firestore."""
     try:
@@ -59,7 +54,7 @@ def evaluate_sample_request(
     sample_id: str,
     threshold: int = Query(70, description="Minimum score required to accept"),
     user=Depends(get_current_user),
-    service: SampleAnalysisService = Depends(get_sample_service),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Manually trigger AI analysis for a sample (Phase 1 → 2 → 3 → decision)."""
     try:
@@ -102,7 +97,7 @@ def update_review_status(
     """
     try:
         # Step 1: Save to our internal Firestore DB first
-        service = get_sample_service()  # Use the cached singleton service instance
+        service = get_sample_analysis_service()
         # repo.set_review_status(sample_id, body.status)
         logger.info(
             "Review status saved to DB: sample_id=%s status=%s by=%s",
@@ -161,7 +156,7 @@ def submit_feedback(
     sample_id: str,
     body: FeedbackBody,
     user=Depends(get_current_user),
-    service: SampleAnalysisService = Depends(get_sample_service),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Submit thumbs up/down feedback for an AI analysis."""
     try:
@@ -181,7 +176,7 @@ def submit_feedback(
 async def get_review_state(
     sample_id: str,
     user=Depends(get_current_user),
-    service: SampleAnalysisService = Depends(get_sample_service),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Fetch the current review status and feedback for a sample. Cached per item."""
     return await service.get_review_state(

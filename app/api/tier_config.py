@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.api.auth_session import require_role
-from app.services.tier_config_service import TierConfigService
+from app.services.tier_config_service import TierConfigService, get_tier_config_service
 
 router = APIRouter(prefix="/config/tier", tags=["Tier Config"])
 logger = logging.getLogger(__name__)
@@ -24,15 +24,23 @@ class AddCreatorBody(BaseModel):
 
 
 @router.get("/creators")
-def list_tier_creators(tier: str | None = None, caller=Depends(_admin)):
+def list_tier_creators(
+    tier: str | None = None,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """List creators on Tier 1/2. Pass ?tier=TIER_1 to filter."""
-    return {"creators": TierConfigService().list_creators(org_id=caller["org_id"], tier=tier)}
+    return {"creators": svc.list_creators(org_id=caller["org_id"], tier=tier)}
 
 
 @router.post("/creators", status_code=status.HTTP_201_CREATED)
-async def add_creator(body: AddCreatorBody, caller=Depends(_admin)):
+async def add_creator(
+    body: AddCreatorBody,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """Add a creator to Tier 1 or 2 by username."""
-    return await TierConfigService().add_creator(
+    return await svc.add_creator(
         org_id=caller["org_id"],
         username=body.username,
         tier=body.tier,
@@ -41,8 +49,12 @@ async def add_creator(body: AddCreatorBody, caller=Depends(_admin)):
 
 
 @router.delete("/creators/{username}", status_code=status.HTTP_200_OK)
-def remove_creator(username: str, caller=Depends(_admin)):
-    removed = TierConfigService().remove_creator(org_id=caller["org_id"], username=username)
+def remove_creator(
+    username: str,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
+    removed = svc.remove_creator(org_id=caller["org_id"], username=username)
     if not removed:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Creator '{username}' not in tier list")
     return {"removed": True, "username": username}
@@ -63,25 +75,35 @@ class UpdateThresholdsBody(BaseModel):
 
 
 @router.get("/products/shop")
-async def list_shop_products(page_size: int = 50, caller=Depends(_admin)):
+async def list_shop_products(
+    page_size: int = 50,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """Fetch live shop products from TikTok for the product-picker UI."""
-    products = await TierConfigService().get_shop_products(
-        org_id=caller["org_id"], page_size=page_size
-    )
+    products = await svc.get_shop_products(org_id=caller["org_id"], page_size=page_size)
     return {"products": products}
 
 
 @router.get("/products")
-def list_tier_products(tier: str | None = None, caller=Depends(_admin)):
+def list_tier_products(
+    tier: str | None = None,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """List Tier 3/4 products. Pass ?tier=TIER_3 to filter."""
-    return {"products": TierConfigService().list_products(org_id=caller["org_id"], tier=tier)}
+    return {"products": svc.list_products(org_id=caller["org_id"], tier=tier)}
 
 
 @router.post("/products", status_code=status.HTTP_201_CREATED)
-async def add_product(body: AddProductBody, caller=Depends(_admin)):
+async def add_product(
+    body: AddProductBody,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """Add a product to Tier 3 or 4."""
     try:
-        return await TierConfigService().add_product(
+        return await svc.add_product(
             org_id=caller["org_id"],
             product_id=body.product_id,
             tier=body.tier,
@@ -99,10 +121,11 @@ def update_product_thresholds(
     product_id: str,
     body: UpdateThresholdsBody,
     caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
 ):
     """Update thresholds for an existing tier 3/4 product."""
     try:
-        return TierConfigService().update_product_thresholds(
+        return svc.update_product_thresholds(
             org_id=caller["org_id"],
             product_id=product_id,
             thresholds=body.thresholds,
@@ -113,8 +136,12 @@ def update_product_thresholds(
 
 
 @router.delete("/products/{product_id}")
-def remove_product(product_id: str, caller=Depends(_admin)):
-    removed = TierConfigService().remove_product(org_id=caller["org_id"], product_id=product_id)
+def remove_product(
+    product_id: str,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
+    removed = svc.remove_product(org_id=caller["org_id"], product_id=product_id)
     if not removed:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not in tier config")
     return {"removed": True, "product_id": product_id}
@@ -129,15 +156,22 @@ class Tier5Body(BaseModel):
 
 
 @router.get("/tier5")
-def get_tier5(caller=Depends(_admin)):
+def get_tier5(
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """Get current Tier 5 global thresholds."""
-    return TierConfigService().get_tier5(caller["org_id"])
+    return svc.get_tier5(caller["org_id"])
 
 
 @router.put("/tier5")
-def set_tier5(body: Tier5Body, caller=Depends(_admin)):
+def set_tier5(
+    body: Tier5Body,
+    caller=Depends(_admin),
+    svc: TierConfigService = Depends(get_tier_config_service),
+):
     """Replace Tier 5 global thresholds."""
-    return TierConfigService().set_tier5(
+    return svc.set_tier5(
         org_id=caller["org_id"],
         thresholds=body.thresholds,
         updated_by=caller["uid"],

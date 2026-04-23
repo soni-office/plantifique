@@ -5,11 +5,12 @@ Owns: cache → DB reads, TikTok sync, agent evaluation, review + feedback write
 The API layer calls only this service; raw repo/cache imports stay here.
 """
 import logging
+from functools import lru_cache
 from typing import Optional
 
 from app.cache import cache, keys, ttl
 from app.repository.sample_analysis_repository import SampleAnalysisRepository
-from app.services.token_service import TokenService
+from app.services.token_service import get_token_service
 from app.clients.tiktok.sample_client import TikTokSampleClient
 from app.utils.shop_ciphers import shop_cipher
 from app.models import SampleAnalysis
@@ -23,7 +24,7 @@ class SampleAnalysisService:
 
     def __init__(self):
         self.repo = SampleAnalysisRepository()
-        self.token_service = TokenService()
+        self.token_service = get_token_service()
 
     # ── Auth helpers ──────────────────────────────────────────────────────
 
@@ -244,3 +245,8 @@ class SampleAnalysisService:
             ttl.SAMPLE_ITEM,
             _fetch,
         )
+
+
+@lru_cache()
+def get_sample_analysis_service() -> "SampleAnalysisService":
+    return SampleAnalysisService()

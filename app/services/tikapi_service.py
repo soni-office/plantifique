@@ -9,7 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.clients.tikapi.client import TikApiClient
+from app.clients.tikapi.client import tikapi_client
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class TikApiService:
     """Handles business logic, enrichment, and orchestration."""
 
     def __init__(self):
-        self.client = TikApiClient()
+        self.client = tikapi_client
         self.llm = ChatGoogleGenerativeAI(
             model=settings.vertex_model,
             temperature=0,

@@ -3,11 +3,12 @@ Tier configuration management — creator/product tier lists + Tier 5 thresholds
 All business logic for resolving TikTok metadata, caching, and repo writes lives here.
 """
 import logging
+from functools import lru_cache
 from typing import Optional
 
 from app.repository.tier_config_repository import TierConfigRepository, THRESHOLD_KEYS
-from app.services.creator_service import CreatorService
-from app.services.product_service import ProductService, shape_product
+from app.services.creator_service import get_creator_service
+from app.services.product_service import get_product_service, shape_product
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +17,8 @@ class TierConfigService:
 
     def __init__(self):
         self.repo = TierConfigRepository()
-        self.creator_svc = CreatorService()
-        self.product_svc = ProductService()
+        self.creator_svc = get_creator_service()
+        self.product_svc = get_product_service()
 
     # ── Creators (Tier 1 / 2) ─────────────────────────────────────────────
 
@@ -159,3 +160,8 @@ class TierConfigService:
         )
         logger.info("Tier 5 thresholds updated org=%s by=%s", org_id, updated_by)
         return {"thresholds": result}
+
+
+@lru_cache()
+def get_tier_config_service() -> "TierConfigService":
+    return TierConfigService()
