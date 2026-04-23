@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from app.db.firestore import db
-from app.core.token_crypto import TokenCrypto
+from app.core.token_crypto import token_crypto
 
 
 class AccessTokenRepository:
@@ -11,7 +11,7 @@ class AccessTokenRepository:
 
     def __init__(self):
         self.col = db.collection("access_tokens")
-        self.crypto = TokenCrypto()
+        self.crypto = token_crypto
 
     def get_by_org(self, org_id: str) -> dict | None:
         doc = self.col.document(org_id).get()

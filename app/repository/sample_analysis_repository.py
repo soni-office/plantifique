@@ -126,8 +126,9 @@ class SampleAnalysisRepository:
             doc_ref.set(model.to_dict())
             return True
 
-        # Partial update — only TikTok-sourced fields
+        # Partial update — only TikTok-sourced fields + ensure org_id is correct
         doc_ref.update({
+            "org_id": org_id,
             "tiktok_status": application.get("status", "PENDING"),
             "commission_rate": application.get("commission_rate"),
             "available_quantity": application.get("available_quantity"),
@@ -176,11 +177,21 @@ class SampleAnalysisRepository:
 
 
 
-    def mark_failed(self, sample_id: str, error: str) -> None:
+    def mark_failed(self, sample_id: str, error: str, retry_count: int = 1) -> None:
         self.col.document(sample_id).set(
             {
                 "analysis_status": "FAILED",
                 "error_message": error,
+                "retry_count": retry_count,
+                "updated_at": datetime.now(timezone.utc),
+            },
+            merge=True,
+        )
+
+    def mark_permanently_failed(self, sample_id: str) -> None:
+        self.col.document(sample_id).set(
+            {
+                "analysis_status": "PERMANENTLY_FAILED",
                 "updated_at": datetime.now(timezone.utc),
             },
             merge=True,

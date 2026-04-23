@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Query
 
 from app.api.auth_session import get_current_user
-from app.services.product_service import ProductService
+from app.services.product_service import ProductService, get_product_service
 
 router = APIRouter(prefix="/tiktok/products", tags=["TikTok Products"])
 logger = logging.getLogger(__name__)
@@ -13,9 +13,10 @@ logger = logging.getLogger(__name__)
 async def search_products(
     page_size: int = Query(20),
     user=Depends(get_current_user),
+    svc: ProductService = Depends(get_product_service),
 ):
     """Search shop products. Cached per org + page_size."""
-    return ProductService().search(
+    return await svc.search(
         org_id=user["org_id"],
         page_size=page_size,
     )
@@ -25,9 +26,10 @@ async def search_products(
 async def get_product(
     product_id: str,
     user=Depends(get_current_user),
+    svc: ProductService = Depends(get_product_service),
 ):
     """Fetch product detail. Cached per org + product_id."""
-    return ProductService().get_detail(
+    return await svc.get_detail(
         org_id=user["org_id"],
         product_id=product_id,
     )

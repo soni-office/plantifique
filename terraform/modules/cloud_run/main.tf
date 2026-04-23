@@ -95,6 +95,10 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "CACHE_DEFAULT_TTL"
         value = tostring(var.cache_default_ttl)
       }
+      env {
+        name  = "BATCH_PROCESS_SAMPLE_REQUESTS_LIMIT"
+        value = tostring(var.batch_process_limit)
+      }
 
       # ---- Sensitive env vars (sourced from Secret Manager) ----
       env {

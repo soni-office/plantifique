@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Header, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Header, HTTPException
 from app.core.config import settings
 from app.services.automation_service import AutomationService
 
@@ -30,46 +30,39 @@ def _verify_internal_secret(x_internal_secret: str) -> None:
 
 @router.post("/process-samples")
 async def trigger_sample_processing(
-    background_tasks: BackgroundTasks,
     x_internal_secret: str = Header(..., description="Secret shared with Cloud Scheduler"),
 ):
     """
     Endpoint called by Google Cloud Scheduler every hour.
-    Validates the shared secret, then kicks off the AutomationService
-    as a BACKGROUND task — returns 202 Accepted immediately so the
-    Cloud Scheduler doesn't time out waiting for AI calls to finish.
-
-    GCP Cloud Scheduler config:
-        Schedule:  0 * * * *   (every hour)
-        URL:       https://<backend-url>/internal/process-samples
-        Method:    POST
-        Header:    X-Internal-Secret: <INTERNAL_API_SECRET value>
+    Validates the shared secret, then kicks off the AutomationService synchronously.
+    
+    Cloud Run prevents background tasks from running after HTTP response unless "CPU Always On" is paid for.
+    Since we only run exactly 3 creators (taking ~3-4 minutes), doing it synchronously easily safely stays
+    under the 10-minute Request Timeout limit without freezing the AI!
     """
     _verify_internal_secret(x_internal_secret)
 
-    async def _run():
-        try:
-            service = AutomationService(org_id=settings.org_id)
-            summary = await service.process_pending()
-            logger.info(
-                "[Scheduler] Processing complete: processed=%d skipped=%d failed=%d",
-                summary.get("processed", 0),
-                summary.get("skipped", 0),
-                summary.get("failed", 0),
-            )
-        except Exception as e:
-            logger.error("[Scheduler] AutomationService failed: %s", e)
-
-    background_tasks.add_task(_run)
-
-    logger.info(
-        "[Scheduler] process-samples triggered for org_id=%s", settings.org_id
-    )
-    return {
-        "status": "accepted",
-        "message": "Processing started in background",
-        "org_id": settings.org_id,
-    }
+    try:
+        service = AutomationService(org_id=settings.org_id)
+        # Runs SYNCHRONOUSLY — Cloud Run keeps the request alive until done.
+        # Batch limit comes from BATCH_PROCESS_SAMPLE_REQUESTS_LIMIT env var (default 5).
+        summary = await service.process_pending()
+        
+        logger.info(
+            "[Scheduler] Processing complete: processed=%d skipped=%d failed=%d",
+            summary.get("processed", 0),
+            summary.get("skipped", 0),
+            summary.get("failed", 0),
+        )
+        return {
+            "status": "success",
+            "message": "Sequential processing completed safely",
+            "summary": summary,
+            "org_id": settings.org_id,
+        }
+    except Exception as e:
+        logger.error("[Scheduler] AutomationService failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")

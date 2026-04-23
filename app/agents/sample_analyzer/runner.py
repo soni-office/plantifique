@@ -1,5 +1,6 @@
 from app.agents.sample_analyzer.graph import build_graph
 from app.agents.sample_analyzer.state import SREvaluationState
+from app.core.callbacks import TokenUsageCallbackHandler
 
 _graph = build_graph()
 
@@ -31,6 +32,8 @@ def run_sr_agent(
         "commerce_reasoning": None,
         "aesthetic_score": None,
         "aesthetic_reasoning": None,
+        "visual_score": None,
+        "visual_reasoning": None,
         "top_3_video_urls": None,
         "compatibility_status": None,
         "rich_creator_detail": None,
@@ -38,7 +41,8 @@ def run_sr_agent(
         "final_decision": None,
         "decision_reason": None,
     }
-    result = _graph.invoke(initial_state)
+    token_logger = TokenUsageCallbackHandler()
+    result = _graph.invoke(initial_state, config={"callbacks": [token_logger]})
 
     # The detailed combined reasoning is generated inside decision_node
     combined_reasoning = result.get("decision_reason")

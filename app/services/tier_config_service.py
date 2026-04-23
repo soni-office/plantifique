@@ -3,11 +3,12 @@ Tier configuration management — creator/product tier lists + Tier 5 thresholds
 All business logic for resolving TikTok metadata, caching, and repo writes lives here.
 """
 import logging
+from functools import lru_cache
 from typing import Optional
 
 from app.repository.tier_config_repository import TierConfigRepository, THRESHOLD_KEYS
-from app.services.creator_service import CreatorService
-from app.services.product_service import ProductService, shape_product
+from app.services.creator_service import get_creator_service
+from app.services.product_service import get_product_service, shape_product
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,15 @@ class TierConfigService:
 
     def __init__(self):
         self.repo = TierConfigRepository()
-        self.creator_svc = CreatorService()
-        self.product_svc = ProductService()
+        self.creator_svc = get_creator_service()
+        self.product_svc = get_product_service()
 
     # ── Creators (Tier 1 / 2) ─────────────────────────────────────────────
 
     def list_creators(self, org_id: str, tier: Optional[str] = None) -> list:
         return self.repo.list_creators(org_id=org_id, tier=tier)
 
-    def add_creator(
+    async def add_creator(
         self,
         org_id: str,
         username: str,
@@ -38,7 +39,7 @@ class TierConfigService:
         creator_open_id = ""
         avatar_url = ""
         try:
-            res = self.creator_svc.search(org_id=org_id, keyword=username, page_size=12)
+            res = await self.creator_svc.search(org_id=org_id, keyword=username, page_size=12)
             creators = res.get("data", {}).get("creators") or []
             match = next(
                 (c for c in creators if c.get("username", "").lower() == username.lower()),
@@ -73,14 +74,14 @@ class TierConfigService:
 
     # ── Products (Tier 3 / 4) ─────────────────────────────────────────────
 
-    def get_shop_products(self, org_id: str, page_size: int = 50) -> list:
+    async def get_shop_products(self, org_id: str, page_size: int = 50) -> list:
         """Return shaped live shop products for the picker UI."""
-        return self.product_svc.get_shop_products_shaped(org_id=org_id, page_size=page_size)
+        return await self.product_svc.get_shop_products_shaped(org_id=org_id, page_size=page_size)
 
     def list_products(self, org_id: str, tier: Optional[str] = None) -> list:
         return self.repo.list_products(org_id=org_id, tier=tier)
 
-    def add_product(
+    async def add_product(
         self,
         org_id: str,
         product_id: str,
@@ -93,7 +94,7 @@ class TierConfigService:
         Fetches TikTok product detail to resolve title, image, price, category.
         Raises LookupError if the product is not found.
         """
-        res = self.product_svc.get_detail(org_id=org_id, product_id=product_id)
+        res = await self.product_svc.get_detail(org_id=org_id, product_id=product_id)
         product = res.get("data") or {}
         if not product:
             raise LookupError(f"Product '{product_id}' not found in TikTok Shop.")
@@ -148,10 +149,8 @@ class TierConfigService:
     # ── Tier 5 global thresholds ──────────────────────────────────────────
 
     def get_tier5(self, org_id: str) -> dict:
-        return {
-            "thresholds": self.repo.get_tier5_thresholds(org_id),
-            "threshold_keys": THRESHOLD_KEYS,
-        }
+        thresholds = self.repo.get_tier5_thresholds(org_id)
+        return {"thresholds": thresholds, "threshold_keys": THRESHOLD_KEYS}
 
     def set_tier5(self, org_id: str, thresholds: dict, updated_by: str) -> dict:
         result = self.repo.set_tier5_thresholds(
@@ -161,3 +160,8 @@ class TierConfigService:
         )
         logger.info("Tier 5 thresholds updated org=%s by=%s", org_id, updated_by)
         return {"thresholds": result}
+
+
+@lru_cache()
+def get_tier_config_service() -> "TierConfigService":
+    return TierConfigService()

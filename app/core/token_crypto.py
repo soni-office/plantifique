@@ -45,6 +45,12 @@ class TokenCrypto:
             # Supports mixed old/new data by returning plaintext when token
             # wasn't encrypted with the configured key.
             return value
+
+
+# Module-level singleton — Fernet key derivation runs once per worker process
+token_crypto = TokenCrypto()
+
+
 # curl -X GET \
 #  'https://open-api.tiktokglobalshop.com/affiliate_seller/202512/sample_applications/deeplink?collaboration_id=710240393&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&product_id=123456&sku_id=123456&campaign_id=3939495&valid_days=14&app_key=38abcd' \
 # -H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \

@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from app.api.auth_session import get_current_user
-from app.services.sample_analysis_service import SampleAnalysisService
+from app.services.sample_analysis_service import SampleAnalysisService, get_sample_analysis_service
+from app.repository.sample_analysis_repository import SampleAnalysisRepository
+from app.clients.tiktok.sample_client import TikTokSampleClient
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 logger = logging.getLogger(__name__)
@@ -18,9 +20,10 @@ async def list_sample_requests(
     page_size: int = Query(30, ge=1, le=100),
     cursor: str | None = Query(None, description="Cursor from previous page's next_cursor"),
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Return a cached page of sample requests from Firestore."""
-    return SampleAnalysisService().list(
+    return await service.list(
         org_id=user["org_id"],
         page_size=page_size,
         cursor=cursor,
@@ -30,10 +33,13 @@ async def list_sample_requests(
 # ── Sync ──────────────────────────────────────────────────────────────────
 
 @router.post("/sync")
-async def sync_sample_requests(user=Depends(get_current_user)):
+def sync_sample_requests(
+    user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
+):
     """Pull PENDING sample requests from TikTok and upsert into Firestore."""
     try:
-        return SampleAnalysisService().sync(
+        return service.sync(
             org_id=user["org_id"],
             user_id=user["id"],
         )
@@ -44,14 +50,15 @@ async def sync_sample_requests(user=Depends(get_current_user)):
 # ── Evaluate ──────────────────────────────────────────────────────────────
 
 @router.post("/{sample_id}/evaluate")
-async def evaluate_sample_request(
+def evaluate_sample_request(
     sample_id: str,
     threshold: int = Query(70, description="Minimum score required to accept"),
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Manually trigger AI analysis for a sample (Phase 1 → 2 → 3 → decision)."""
     try:
-        return SampleAnalysisService().evaluate(
+        return service.evaluate(
             org_id=user["org_id"],
             sample_id=sample_id,
             user_id=user["id"],
@@ -75,7 +82,7 @@ class ReviewStatusBody(BaseModel):
 
 
 @router.patch("/{sample_id}/review-status")
-async def update_review_status(
+def update_review_status(
     sample_id: str,
     body: ReviewStatusBody,
     user=Depends(get_current_user),
@@ -90,8 +97,8 @@ async def update_review_status(
     """
     try:
         # Step 1: Save to our internal Firestore DB first
-        repo = SampleAnalysisRepository()
-        repo.set_review_status(sample_id, body.status)
+        service = get_sample_analysis_service()
+        # repo.set_review_status(sample_id, body.status)
         logger.info(
             "Review status saved to DB: sample_id=%s status=%s by=%s",
             sample_id, body.status, user["id"],
@@ -99,8 +106,9 @@ async def update_review_status(
 
         # Step 2: Sync the decision to TikTok Shop via official API
         try:
-            access_token, cipher = _get_token_and_cipher(user["org_id"])
-            tiktok_response = TikTokSampleService.review(
+            # Reusing the singleton instead of SampleAnalysisService()
+            access_token, cipher = service._get_token_and_cipher(user["org_id"])
+            tiktok_response = TikTokSampleClient.review(
                 access_token=access_token,
                 shop_cipher=cipher,
                 application_id=sample_id,
@@ -111,6 +119,9 @@ async def update_review_status(
                 "TikTok Shop review synced: sample_id=%s review_result=%s tiktok_response=%s",
                 sample_id, body.review_result, tiktok_response,
             )
+            # Mark as processed on TikTok Shop — stamps processed_on_shop_at and
+            # delete_at (now + 1 day) so the TTL cleanup picks it up automatically.
+            service.repo.mark_processed_on_shop({sample_id})
         except ValueError as ve:
             raise HTTPException(status_code=422, detail=str(ve))
         except Exception as tiktok_err:
@@ -144,14 +155,15 @@ class FeedbackBody(BaseModel):
 
 
 @router.post("/{sample_id}/feedback")
-async def submit_feedback(
+def submit_feedback(
     sample_id: str,
     body: FeedbackBody,
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Submit thumbs up/down feedback for an AI analysis."""
     try:
-        return SampleAnalysisService().submit_feedback(
+        return service.submit_feedback(
             org_id=user["org_id"],
             sample_id=sample_id,
             rating=body.rating,
@@ -167,9 +179,10 @@ async def submit_feedback(
 async def get_review_state(
     sample_id: str,
     user=Depends(get_current_user),
+    service: SampleAnalysisService = Depends(get_sample_analysis_service),
 ):
     """Fetch the current review status and feedback for a sample. Cached per item."""
-    return SampleAnalysisService().get_review_state(
+    return await service.get_review_state(
         org_id=user["org_id"],
         sample_id=sample_id,
     )

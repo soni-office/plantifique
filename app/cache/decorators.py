@@ -1,15 +1,16 @@
 """
 Decorator for caching async endpoint responses.
-For most use-cases, prefer cache_or_fetch() from cache.py directly.
+For most use-cases, prefer async_cache_or_fetch() from cache.py directly.
 """
 from functools import wraps
 
-from app.cache.cache import _get, _set
+from app.cache.cache import _aget, _aset
 
 
 def cache_response(key_fn, ttl: int = 300):
     """
-    Cache an async function's return value.
+    Cache an async function's return value using the async Redis client.
+    Redis I/O is non-blocking — the event loop is never stalled.
 
     key_fn: callable that receives the same *args/**kwargs as the function
             and returns the cache key string.
@@ -22,12 +23,12 @@ def cache_response(key_fn, ttl: int = 300):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             key = key_fn(*args, **kwargs)
-            cached = _get(key)
+            cached = await _aget(key)
             if cached is not None:
                 return cached
             result = await func(*args, **kwargs)
             if result is not None:
-                _set(key, result, ttl)
+                await _aset(key, result, ttl)
             return result
         return wrapper
     return decorator

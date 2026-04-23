@@ -2,13 +2,14 @@
 
 import json
 import logging
+import time
 from typing import Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.clients.tikapi.client import TikApiClient
+from app.clients.tikapi.client import tikapi_client
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class TikApiService:
     """Handles business logic, enrichment, and orchestration."""
 
     def __init__(self):
-        self.client = TikApiClient()
+        self.client = tikapi_client
         self.llm = ChatGoogleGenerativeAI(
             model=settings.vertex_model,
             temperature=0,
@@ -46,12 +47,16 @@ class TikApiService:
         if not sec_uid:
             return []
 
+        logger.info("[TikAPI] 1s gap — after profile lookup, before video fetch")
+        time.sleep(1)
         videos = self._get_relevant_videos(sec_uid, username, product_title)
 
-        # Enrich top 5 videos with comments
+        # Enrich top 5 videos with comments — 1s gap between each call
         for video in videos[:5]:
             video_id = video.get("video_id")
             if video_id:
+                logger.info("[TikAPI] 1s gap — before fetching comments for video_id=%s", video_id)
+                time.sleep(1)
                 comments = self._get_clean_comments(video_id)
                 video["top_comments"] = comments
 
@@ -66,6 +71,8 @@ class TikApiService:
             mix_id = self._select_playlist(playlists, product_title)
 
             if mix_id:
+                logger.info("[TikAPI] 1s gap — after playlist selection, before fetching playlist videos")
+                time.sleep(1)
                 raw = self.client.get_playlist_videos(mix_id, _VIDEO_LIMIT)
                 return [self._sanitise_video(v, username) for v in raw]
 

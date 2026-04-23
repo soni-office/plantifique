@@ -29,6 +29,7 @@ resource "google_project_service" "apis" {
     "firestore.googleapis.com",
     "aiplatform.googleapis.com",
     "storage.googleapis.com",
+    "cloudscheduler.googleapis.com",
   ])
   project            = var.project_id
   service            = each.value
@@ -177,6 +178,8 @@ module "cloud_run" {
   want_to_use_rag      = false
   mock_sample_requests = false
   phase4_gcs_bucket    = google_storage_bucket.phase4_videos.name
+  # ~20 min for 5 samples (≈ 2-3 min each + 10s gaps). Must be < scheduler attempt_deadline.
+  timeout_seconds      = 1200
   # min_instances      = 0
   # max_instances      = 3
   # memory             = "1Gi"
@@ -187,6 +190,71 @@ module "cloud_run" {
     module.secrets,
     google_storage_bucket.phase4_videos,
     google_storage_bucket_iam_member.phase4_videos_admin,
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Cloud Scheduler — process pending sample requests hourly
+# ---------------------------------------------------------------------------
+
+# Dedicated SA for the scheduler (least-privilege: only invokes this service)
+resource "google_service_account" "scheduler_sa" {
+  project      = var.project_id
+  account_id   = "plantifique-scheduler-${local.env}"
+  display_name = "Plantifique Scheduler ${upper(local.env)} SA"
+
+  depends_on = [google_project_service.apis]
+}
+
+# Grant the scheduler SA permission to invoke the Cloud Run service via OIDC.
+# The service also accepts allUsers (public), but OIDC adds defense in depth.
+resource "google_cloud_run_v2_service_iam_member" "scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = module.cloud_run.service_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler_sa.email}"
+
+  depends_on = [module.cloud_run]
+}
+
+resource "google_cloud_scheduler_job" "process_samples" {
+  project          = var.project_id
+  region           = var.region
+  name             = "plantifique-process-samples-${local.env}"
+  description      = "Hourly job: POST /internal/process-samples to trigger AI evaluation of pending TikTok sample requests"
+  schedule         = var.scheduler_cron_schedule
+  time_zone        = "UTC"
+  attempt_deadline = "1260s"  # 21 min — must exceed Cloud Run's 1200s timeout so scheduler waits for the full response
+
+  retry_config {
+    retry_count = 0   # no automatic retries — Firestore deduplication prevents double-processing, scheduler runs again next hour anyway
+  }
+
+  http_target {
+    uri         = "${module.cloud_run.service_url}/internal/process-samples"
+    http_method = "POST"
+
+    headers = {
+      "Content-Type"      = "application/json"
+      "x-internal-secret" = var.internal_api_secret
+    }
+
+    # Empty JSON body — all config comes from env vars on the Cloud Run side
+    body = base64encode("{}")
+
+    # OIDC token so Cloud Run can verify the caller is our scheduler SA
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+      audience              = module.cloud_run.service_url
+    }
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    module.cloud_run,
+    google_service_account.scheduler_sa,
+    google_cloud_run_v2_service_iam_member.scheduler_invoker,
   ]
 }
 

@@ -5,11 +5,12 @@ Owns: cache → DB reads, TikTok sync, agent evaluation, review + feedback write
 The API layer calls only this service; raw repo/cache imports stay here.
 """
 import logging
+from functools import lru_cache
 from typing import Optional
 
 from app.cache import cache, keys, ttl
 from app.repository.sample_analysis_repository import SampleAnalysisRepository
-from app.services.token_service import TokenService
+from app.services.token_service import get_token_service
 from app.clients.tiktok.sample_client import TikTokSampleClient
 from app.utils.shop_ciphers import shop_cipher
 from app.models import SampleAnalysis
@@ -23,7 +24,7 @@ class SampleAnalysisService:
 
     def __init__(self):
         self.repo = SampleAnalysisRepository()
-        self.token_service = TokenService()
+        self.token_service = get_token_service()
 
     # ── Auth helpers ──────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ class SampleAnalysisService:
 
     # ── List ──────────────────────────────────────────────────────────────
 
-    def list(self, org_id: str, page_size: int = 30, cursor: Optional[str] = None) -> dict:
+    async def list(self, org_id: str, page_size: int = 30, cursor: Optional[str] = None) -> dict:
         """Cache-first paginated list for an org."""
         def _fetch():
             items, next_cursor = self.repo.list_for_org(
@@ -49,7 +50,7 @@ class SampleAnalysisService:
                 "has_more": next_cursor is not None,
             }
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.sample_list(org_id, page_size, cursor),
             ttl.SAMPLE_LIST,
             _fetch,
@@ -135,18 +136,24 @@ class SampleAnalysisService:
         """
         from app.agents.sample_analyzer.runner import run_sr_agent
 
-        # existing = self.repo.get(sample_id)
-        # if existing and existing.get("analysis_status") == "COMPLETED":
-        #     logger.warning(
-        #         "sample_id=%s already analysed, skipping re-evaluation", sample_id
-        #     )
-        #     return {"status": "skipped", "message": "Analysis already exists for this sample_id", "data": SampleAnalysis.from_dict(existing).get_analysis_result()}
+        existing = self.repo.get(sample_id)
+        if existing and existing.get("analysis_status") in ("QUEUED", "COMPLETED"):
+            logger.warning(
+                "sample_id=%s is already %s — skipping duplicate analysis",
+                sample_id, existing.get("analysis_status"),
+            )
+            return {
+                "status": "skipped",
+                "message": f"Analysis is already {existing.get('analysis_status').lower()}. Cannot run again.",
+            }
 
         logger.info(
             "Evaluating sample_id=%s org=%s by=%s", sample_id, org_id, user_id
         )
         access_token, cipher = self._get_token_and_cipher(org_id)
         self.repo.mark_queued(sample_id=sample_id, org_id=org_id)
+        #  Clear Redis list cache immediately so a page refresh shows QUEUED right away
+        cache.invalidate_prefix(keys.sample_list_prefix(org_id))
 
         result = run_sr_agent(
             sample_request_id=sample_id,
@@ -214,7 +221,7 @@ class SampleAnalysisService:
 
     # ── Review state (cached) ─────────────────────────────────────────────
 
-    def get_review_state(self, org_id: str, sample_id: str) -> dict:
+    async def get_review_state(self, org_id: str, sample_id: str) -> dict:
         """Cache-first fetch of review status + feedback for a sample."""
         def _fetch():
             doc = self.repo.get(sample_id)
@@ -233,8 +240,13 @@ class SampleAnalysisService:
                 },
             }
 
-        return cache.cache_or_fetch(
+        return await cache.async_cache_or_fetch(
             keys.sample_item(org_id, sample_id),
             ttl.SAMPLE_ITEM,
             _fetch,
         )
+
+
+@lru_cache()
+def get_sample_analysis_service() -> "SampleAnalysisService":
+    return SampleAnalysisService()

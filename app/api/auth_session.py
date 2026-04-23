@@ -13,6 +13,8 @@ router = APIRouter(prefix="/auth", tags=["Auth Session"])
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
+_user_repo = UserRepository()
+
 
 # Auth dependency — stateless, zero DB calls
 
@@ -85,7 +87,7 @@ class SetRoleBody(BaseModel):
 @router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
     """Return the current user's profile (claims + Firestore metadata)."""
-    db_user = UserRepository().get_by_id(user["uid"])
+    db_user = _user_repo.get_by_id(user["uid"])
     return {
         "uid": user["uid"],
         "email": db_user.get("email") if db_user else user["email"],
@@ -141,7 +143,7 @@ async def invite_user(
     })
 
     # Mirror metadata to Firestore so org-level queries still work
-    UserRepository().create(
+    _user_repo.create(
         uid=gcip_user.uid,
         org_id=target_org,
         email=body.email,
@@ -185,7 +187,7 @@ async def list_users(
     caller: dict = Depends(require_role("ORG_ADMIN", "SUPER_ADMIN")),
 ):
     """List all active users in the caller's org."""
-    members = UserRepository().get_all_by_org(caller["org_id"])
+    members = _user_repo.get_all_by_org(caller["org_id"])
     return {"users": members}
 
 
@@ -208,8 +210,7 @@ async def remove_user(
     if uid == caller["uid"]:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot remove yourself")
 
-    repo = UserRepository()
-    target = repo.get_by_id(uid)
+    target = _user_repo.get_by_id(uid)
     if not target or target.get("status") != "ACTIVE":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
@@ -230,7 +231,7 @@ async def remove_user(
         logger.warning("GCIP delete failed for uid=%s: %s — continuing with Firestore update", uid, exc)
 
     # Soft-delete in Firestore (keeps audit trail)
-    repo.update_status(uid, "DEACTIVATED")
+    _user_repo.update_status(uid, "DEACTIVATED")
 
     logger.info("User removed uid=%s by=%s org=%s", uid, caller["uid"], caller["org_id"])
     return {"removed": True, "uid": uid}
@@ -264,7 +265,7 @@ async def set_role(
     tenant_client.set_custom_user_claims(body.uid, {**existing_claims, "role": body.role})
 
     # Update Firestore mirror
-    UserRepository().col.document(body.uid).update({"role": body.role})
+    _user_repo.col.document(body.uid).update({"role": body.role})
 
     logger.info("Role updated uid=%s role=%s by=%s", body.uid, body.role, caller["uid"])
     return {"uid": body.uid, "role": body.role}

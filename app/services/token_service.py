@@ -3,6 +3,7 @@ Provides a valid TikTok access token for an org, refreshing silently when expire
 """
 import logging
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from app.repository.access_token_repository import AccessTokenRepository
 from app.clients.tiktok.oauth_client import TikTokOAuthClient
@@ -60,3 +61,8 @@ class TokenService:
                 "Failed to refresh TikTok token. "
                 "Please ask the admin to re-authenticate via TikTok."
             )
+
+
+@lru_cache()
+def get_token_service() -> "TokenService":
+    return TokenService()

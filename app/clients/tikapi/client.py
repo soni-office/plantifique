@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Optional
 
 import requests
@@ -21,12 +22,14 @@ class TikApiClient:
     def __init__(self):
         self.base_url = _BASE_URL
         self.api_key = settings.tikapi_key
-
-    def _headers(self) -> dict:
-        return {
-            "content-type": "application/json",
-            "X-API-KEY": self.api_key,
-        }
+        
+        # Singleton connection pool to avoid opening a new TCP connection on every single request
+        self.session = requests.Session()
+        if self.api_key:
+            self.session.headers.update({
+                "content-type": "application/json",
+                "X-API-KEY": self.api_key,
+            })
 
     def _get(self, path: str, params: dict, timeout: int = _TIMEOUT_DEFAULT) -> Optional[dict]:
         """
@@ -44,12 +47,24 @@ class TikApiClient:
         for attempt in (1, 2):
             current_timeout = timeout if attempt == 1 else timeout + 5
             try:
-                resp = requests.get(
+                resp = self.session.get(
                     url,
-                    headers=self._headers(),
                     params=params,
                     timeout=current_timeout,
                 )
+
+                # 502 Bad Gateway: transient TikAPI server hiccup — retry once after 2s
+                if resp.status_code == 502:
+                    if attempt == 1:
+                        logger.warning(
+                            "[TikAPI] GET %s returned 502 Bad Gateway — retrying once in 3s",
+                            path,
+                        )
+                        time.sleep(2)
+                        continue
+                    logger.error("[TikAPI] GET %s returned 502 again on retry — giving up", path)
+                    return None
+
                 resp.raise_for_status()
                 return resp.json()
 
@@ -105,3 +120,7 @@ class TikApiClient:
         if not data:
             return []
         return data.get("comments") or []
+
+
+# Module-level singleton — requests.Session (connection pool) created once per worker
+tikapi_client = TikApiClient()

@@ -23,3 +23,15 @@ variable "firebase_tenant_id" {
   type        = string
   default     = "teampop-6fiht"
 }
+
+variable "internal_api_secret" {
+  description = "Shared secret sent by Cloud Scheduler in x-internal-secret header. Must match the value stored in plantifique-dev-internal-api-secret in Secret Manager."
+  type        = string
+  sensitive   = true
+}
+
+variable "scheduler_cron_schedule" {
+  description = "Cron schedule (UTC) for the process-samples job"
+  type        = string
+  default     = "0 * * * *"  # every hour on the hour
+}
