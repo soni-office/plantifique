@@ -152,6 +152,15 @@ class SampleAnalysisRepository:
         """Persist agent output. Merges into existing doc via model field names."""
         now = datetime.now(timezone.utc)
         # Build a partial SampleAnalysis and write only the analysis fields
+        # Minify and store only essential metrics as 'creator_metrics' to save DB space.
+        # The full creator profile lives in memory during analysis only.
+        full_rich_detail = result.get("rich_creator_detail") or {}
+        minified_creator_detail = {
+            "gmv": full_rich_detail.get("gmv"),
+            "gmv_range": full_rich_detail.get("gmv_range"),
+            "post_rate": full_rich_detail.get("post_rate"),
+        } if full_rich_detail else None
+
         update = {
             "org_id": org_id,
             "tiktok_sample_id": sample_id,
@@ -169,6 +178,7 @@ class SampleAnalysisRepository:
             "filters_passed": result.get("filters_passed"),
             "validation_reason": result.get("validation_reason"),
             "decision_reason": result.get("decision_reason"),
+            "creator_metrics": minified_creator_detail,
             "review_status": "PENDING_REVIEW",
             "processed_at": now,
             "updated_at": now,
@@ -197,15 +207,19 @@ class SampleAnalysisRepository:
             merge=True,
         )
 
-    def set_review_status(self, sample_id: str, status: str) -> None:
+    def set_review_status(self, sample_id: str, status: str, reason: str = None) -> None:
         if status not in self.VALID_REVIEW_STATUSES:
             raise ValueError(
                 f"Invalid review_status '{status}'. Must be one of: {self.VALID_REVIEW_STATUSES}"
             )
-        self.col.document(sample_id).set(
-            {"review_status": status, "updated_at": datetime.now(timezone.utc)},
-            merge=True,
-        )
+        update_data = {
+            "review_status": status, 
+            "updated_at": datetime.now(timezone.utc)
+        }
+        if reason is not None:
+            update_data["auto_review_reason"] = reason
+            
+        self.col.document(sample_id).set(update_data, merge=True)
 
     def set_feedback(self, sample_id: str, rating: str, comment: str = "") -> None:
         if rating not in ("up", "down"):

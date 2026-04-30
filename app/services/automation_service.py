@@ -167,6 +167,16 @@ class AutomationService:
             self.analysis_repo.save_analysis_result(
                 sample_id=sample_id, org_id=self.org_id, result=result
             )
+            
+            # Auto-review: apply rule-based approve/reject immediately after analysis
+            from app.services.auto_review_service import AutoReviewService
+            auto_review = AutoReviewService().run(
+                sample_id=sample_id,
+                org_id=self.org_id,
+                result=result,
+            )
+            logger.info("[AutomationService] AutoReview result: sample_id=%s action=%s", sample_id, auto_review.get("action"))
+            
             return True
         except Exception as e:
             logger.error("[AutomationService] Failed sample_id=%s: %s", sample_id, e)

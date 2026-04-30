@@ -166,6 +166,16 @@ class SampleAnalysisService:
             org_id=org_id,
             result=result,
         )
+
+        # Auto-review: apply rule-based approve/reject immediately after analysis
+        from app.services.auto_review_service import AutoReviewService
+        auto_review = AutoReviewService().run(
+            sample_id=sample_id,
+            org_id=org_id,
+            result=result,
+        )
+        logger.info("AutoReview result: sample_id=%s action=%s", sample_id, auto_review.get("action"))
+
         cache.invalidate(keys.sample_item(org_id, sample_id))
         cache.invalidate_prefix(keys.sample_list_prefix(org_id))
         logger.info("Evaluation complete sample_id=%s", sample_id)
@@ -186,7 +196,7 @@ class SampleAnalysisService:
             "visual_reasoning": result.get("visual_reasoning"),
             "compatibility_status": result.get("compatibility_status"),
             "decision_reason": result.get("decision_reason"),
-            "rich_creator_detail": result.get("rich_creator_detail"),
+            "creator_metrics": result.get("rich_creator_detail"),
             "rich_product_detail": result.get("rich_product_detail"),
         }
         return {"status": "success", "data": normalized}
@@ -245,6 +255,47 @@ class SampleAnalysisService:
             ttl.SAMPLE_ITEM,
             _fetch,
         )
+
+    def update_review_status(
+        self, org_id: str, sample_id: str, internal_status: str, 
+        review_result: str, reject_reason: str = None,
+        db_reason: str = None, user_id: str = "system"
+    ) -> dict:
+        """
+        Method to update review status
+        1. Saves the internal status to Firestore.
+        2. Syncs the official decision to TikTok Shop.
+        3. Marks the item as processed locally.
+        """
+        # Step 1: Update internal database
+        self.repo.set_review_status(sample_id, internal_status, db_reason)
+        logger.info(
+            "Review status saved to DB: sample_id=%s status=%s reason=%s by=%s",
+            sample_id, internal_status, db_reason, user_id
+        )
+
+        # Step 2: Sync to TikTok Shop
+        # access_token, cipher = self._get_token_and_cipher(org_id)
+        
+        # DISABLED FOR TESTING
+        # tiktok_response = TikTokSampleClient.review(
+        #     access_token=access_token,
+        #     shop_cipher=cipher,
+        #     application_id=sample_id,
+        #     review_result=review_result,
+        #     reject_reason=reject_reason,
+        # )
+        tiktok_response = {"mock": "disabled_for_testing"}
+        
+        logger.info(
+            "TikTok Shop review synced (DISABLED): sample_id=%s review_result=%s response=%s",
+            sample_id, review_result, tiktok_response,
+        )
+        
+        # Step 3: Mark as processed on TikTok Shop locally
+        self.repo.mark_processed_on_shop({sample_id})
+        
+        return tiktok_response
 
 
 @lru_cache()

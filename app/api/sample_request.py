@@ -7,7 +7,6 @@ from pydantic import BaseModel
 from app.api.auth_session import get_current_user
 from app.services.sample_analysis_service import SampleAnalysisService, get_sample_analysis_service
 from app.repository.sample_analysis_repository import SampleAnalysisRepository
-from app.clients.tiktok.sample_client import TikTokSampleClient
 
 router = APIRouter(prefix="/tiktok/samples", tags=["TikTok Sample Requests"])
 logger = logging.getLogger(__name__)
@@ -96,55 +95,25 @@ def update_review_status(
          is immediately reflected on the live TikTok Shop as well.
     """
     try:
-        # Step 1: Save to our internal Firestore DB first
         service = get_sample_analysis_service()
-        # repo.set_review_status(sample_id, body.status)
-        logger.info(
-            "Review status saved to DB: sample_id=%s status=%s by=%s",
-            sample_id, body.status, user["id"],
+        service.update_review_status(
+            org_id=user["org_id"],
+            sample_id=sample_id,
+            internal_status=body.status,
+            review_result=body.review_result,
+            reject_reason=body.reject_reason,
+            user_id=user["id"],
         )
-
-        # Step 2: Sync the decision to TikTok Shop via official API
-        try:
-            # Reusing the singleton instead of SampleAnalysisService()
-            access_token, cipher = service._get_token_and_cipher(user["org_id"])
-            tiktok_response = TikTokSampleClient.review(
-                access_token=access_token,
-                shop_cipher=cipher,
-                application_id=sample_id,
-                review_result=body.review_result,
-                reject_reason=body.reject_reason,
-            )
-            logger.info(
-                "TikTok Shop review synced: sample_id=%s review_result=%s tiktok_response=%s",
-                sample_id, body.review_result, tiktok_response,
-            )
-            # Mark as processed on TikTok Shop — stamps processed_on_shop_at and
-            # delete_at (now + 1 day) so the TTL cleanup picks it up automatically.
-            service.repo.mark_processed_on_shop({sample_id})
-        except ValueError as ve:
-            raise HTTPException(status_code=422, detail=str(ve))
-        except Exception as tiktok_err:
-            logger.error(
-                "TikTok review sync failed for sample_id=%s: %s",
-                sample_id, tiktok_err,
-            )
-            return {
-                "status": "partial_success",
-                "sample_id": sample_id,
-                "review_status": body.status,
-                "warning": f"Saved to DB but TikTok sync failed: {tiktok_err}",
-            }
-
         return {
             "status": "success",
             "sample_id": sample_id,
             "review_status": body.status,
-            "tiktok_synced": True,
         }
-
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("Review status update failed for sample_id=%s: %s", sample_id, e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Feedback ──────────────────────────────────────────────────────────────
