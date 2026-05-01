@@ -77,6 +77,42 @@ class SampleAnalysisRepository:
     #     )
     #     return [{**doc.to_dict(), "id": doc.id} for doc in docs]
 
+    def list_for_org_filtered(
+        self,
+        org_id: str,
+        filter_field: str,
+        filter_value: str,
+        page_size: int = 30,
+        start_after_id: str | None = None,
+    ) -> tuple[list[dict], str | None]:
+        """
+        Cursor-based paginated list filtered by a single field, newest first.
+
+        Requires a composite index: (org_id ASC, <filter_field> ASC, first_seen_at DESC).
+        Firestore will print the index-creation link in the error if it is missing.
+        """
+        query = (
+            self.col
+            .where(filter=FieldFilter("org_id", "==", org_id))
+            .where(filter=FieldFilter(filter_field, "==", filter_value))
+            .order_by("first_seen_at", direction=Query.DESCENDING)
+            .limit(page_size + 1)
+        )
+
+        if start_after_id:
+            snap = self.col.document(start_after_id).get()
+            if snap.exists:
+                query = query.start_after(snap)
+
+        docs = list(query.stream())
+        has_more = len(docs) > page_size
+        if has_more:
+            docs = docs[:page_size]
+
+        items = [{**doc.to_dict(), "id": doc.id} for doc in docs]
+        next_cursor = docs[-1].id if has_more else None
+        return items, next_cursor
+
     def get_all_tiktok_pending_ids(self, org_id: str) -> set[str]:
         """
         Return doc IDs that still have tiktok_status=PENDING.

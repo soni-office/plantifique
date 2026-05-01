@@ -4,6 +4,7 @@ Business logic for sample analyses.
 Owns: cache → DB reads, TikTok sync, agent evaluation, review + feedback writes.
 The API layer calls only this service; raw repo/cache imports stay here.
 """
+import asyncio
 import logging
 from functools import lru_cache
 from typing import Optional
@@ -18,6 +19,15 @@ from app.models import SampleAnalysis
 logger = logging.getLogger(__name__)
 
 _VALID_REVIEW_STATUSES = {"PENDING_REVIEW", "APPROVED", "REJECTED"}
+
+_ALLOWED_FILTER_FIELDS = frozenset({
+    "review_status", "analysis_status", "tiktok_status", "creator_username", "sample_id",
+})
+
+# Maps frontend filter field names → actual Firestore field paths
+_FILTER_FIELD_MAP = {
+    "creator_username": "creator.username",
+}
 
 
 class SampleAnalysisService:
@@ -176,7 +186,6 @@ class SampleAnalysisService:
         )
         logger.info("AutoReview result: sample_id=%s action=%s", sample_id, auto_review.get("action"))
 
-        cache.invalidate(keys.sample_item(org_id, sample_id))
         cache.invalidate_prefix(keys.sample_list_prefix(org_id))
         logger.info("Evaluation complete sample_id=%s", sample_id)
 
@@ -201,17 +210,47 @@ class SampleAnalysisService:
         }
         return {"status": "success", "data": normalized}
 
-    # ── Review status ─────────────────────────────────────────────────────
+    # ── Filtered list ─────────────────────────────────────────────────────
 
-    def update_review_status(self, org_id: str, sample_id: str, status: str) -> dict:
-        """Validate and persist a human review decision; invalidates item cache."""
-        if status not in _VALID_REVIEW_STATUSES:
-            raise ValueError(
-                f"Invalid review_status '{status}'. Must be one of: {_VALID_REVIEW_STATUSES}"
+    async def list_filtered(
+        self,
+        org_id: str,
+        filter_field: str,
+        filter_value: str,
+        page_size: int = 30,
+        cursor: Optional[str] = None,
+    ) -> dict:
+        """Cache-first filtered list. sample_id is a direct doc lookup; all others run a Firestore query."""
+        if filter_field == "sample_id":
+            loop = asyncio.get_running_loop()
+            doc = await loop.run_in_executor(None, self.repo.get, filter_value)
+            if not doc or doc.get("org_id") != org_id:
+                return {"items": [], "next_cursor": None, "has_more": False}
+            return {"items": [doc], "next_cursor": None, "has_more": False}
+
+        db_field = _FILTER_FIELD_MAP.get(filter_field, filter_field)
+
+        def _fetch():
+            items, next_cursor = self.repo.list_for_org_filtered(
+                org_id=org_id,
+                filter_field=db_field,
+                filter_value=filter_value,
+                page_size=page_size,
+                start_after_id=cursor,
             )
-        self.repo.set_review_status(sample_id, status)
-        cache.invalidate(keys.sample_item(org_id, sample_id))
-        return {"status": "success", "sample_id": sample_id, "review_status": status}
+            return {
+                "items": items,
+                "next_cursor": next_cursor,
+                "has_more": next_cursor is not None,
+            }
+
+        return await cache.async_cache_or_fetch(
+            keys.sample_list_filtered(org_id, filter_field, filter_value, page_size, cursor),
+            ttl.SAMPLE_LIST,
+            _fetch,
+        )
+
+        
 
     # ── Feedback ──────────────────────────────────────────────────────────
 
@@ -222,7 +261,7 @@ class SampleAnalysisService:
         if rating not in ("up", "down"):
             raise ValueError("Feedback rating must be 'up' or 'down'")
         self.repo.set_feedback(sample_id, rating, comment)
-        cache.invalidate(keys.sample_item(org_id, sample_id))
+        cache.invalidate_prefix(keys.sample_list_prefix(org_id))
         return {
             "status": "success",
             "sample_id": sample_id,
@@ -232,30 +271,26 @@ class SampleAnalysisService:
     # ── Review state (cached) ─────────────────────────────────────────────
 
     async def get_review_state(self, org_id: str, sample_id: str) -> dict:
-        """Cache-first fetch of review status + feedback for a sample."""
-        def _fetch():
-            doc = self.repo.get(sample_id)
-            if not doc:
-                return {
-                    "sample_id": sample_id,
-                    "review_status": None,
-                    "feedback": {"rating": None, "comment": ""},
-                }
+        """Always fetches review status + feedback fresh from DB so mutations are immediately visible."""
+        loop = asyncio.get_running_loop()
+        doc = await loop.run_in_executor(None, self.repo.get, sample_id)
+        if not doc:
             return {
                 "sample_id": sample_id,
-                "review_status": doc.get("review_status"),
-                "feedback": {
-                    "rating": doc.get("feedback_rating"),
-                    "comment": doc.get("feedback_comment", ""),
-                },
+                "review_status": None,
+                "feedback": {"rating": None, "comment": ""},
             }
+        return {
+            "sample_id": sample_id,
+            "review_status": doc.get("review_status"),
+            "feedback": {
+                "rating": doc.get("feedback_rating"),
+                "comment": doc.get("feedback_comment", ""),
+            },
+        }
 
-        return await cache.async_cache_or_fetch(
-            keys.sample_item(org_id, sample_id),
-            ttl.SAMPLE_ITEM,
-            _fetch,
-        )
-
+ # ── Review status ─────────────────────────────────────────────────────
+ 
     def update_review_status(
         self, org_id: str, sample_id: str, internal_status: str, 
         review_result: str, reject_reason: str = None,
@@ -267,36 +302,40 @@ class SampleAnalysisService:
         2. Syncs the official decision to TikTok Shop.
         3. Marks the item as processed locally.
         """
-        # Step 1: Update internal database
+        if internal_status not in _VALID_REVIEW_STATUSES:
+            raise ValueError(
+                f"Invalid review_status '{internal_status}'. Must be one of: {_VALID_REVIEW_STATUSES}"
+            )
+        access_token, cipher = self._get_token_and_cipher(org_id)
+        
+        # DISABLED FOR TESTING
+        tiktok_response = TikTokSampleClient.review(
+            access_token=access_token,
+            shop_cipher=cipher,
+            application_id=sample_id,
+            review_result=review_result,
+            reject_reason=reject_reason,
+        )
+        logger.info(
+            "TikTok Shop review synced: sample_id=%s review_result=%s tiktok_response=%s",
+            sample_id, review_result, tiktok_response,
+        )
+
+        
+        # Step 2: TikTok accepted — now persist to DB and invalidate cache
         self.repo.set_review_status(sample_id, internal_status, db_reason)
         logger.info(
             "Review status saved to DB: sample_id=%s status=%s reason=%s by=%s",
             sample_id, internal_status, db_reason, user_id
         )
-
-        # Step 2: Sync to TikTok Shop
-        # access_token, cipher = self._get_token_and_cipher(org_id)
-        
-        # DISABLED FOR TESTING
-        # tiktok_response = TikTokSampleClient.review(
-        #     access_token=access_token,
-        #     shop_cipher=cipher,
-        #     application_id=sample_id,
-        #     review_result=review_result,
-        #     reject_reason=reject_reason,
-        # )
-        tiktok_response = {"mock": "disabled_for_testing"}
-        
-        logger.info(
-            "TikTok Shop review synced (DISABLED): sample_id=%s review_result=%s response=%s",
-            sample_id, review_result, tiktok_response,
-        )
-        
         # Step 3: Mark as processed on TikTok Shop locally
         self.repo.mark_processed_on_shop({sample_id})
-        
+        cache.invalidate_prefix(keys.sample_list_prefix(org_id))
+        logger.info(
+            "Review status saved to DB: sample_id=%s status=%s",
+            sample_id, review_result
+        )
         return tiktok_response
-
 
 @lru_cache()
 def get_sample_analysis_service() -> "SampleAnalysisService":

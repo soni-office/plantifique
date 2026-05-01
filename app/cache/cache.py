@@ -159,14 +159,14 @@ def cache_or_fetch(key: str, ttl: int, fn: Callable[[], Any]) -> Any:
 def invalidate(*keys: str) -> None:
     """Delete one or more exact cache keys (sync)."""
     if keys:
-        logger.debug("Cache INVALIDATE %s", keys)
+        logger.info("Cache INVALIDATE %s", keys)
         _delete(*keys)
 
 
 def invalidate_prefix(prefix: str) -> int:
     """Delete all cache keys that start with prefix (sync). Returns count removed."""
     count = _scan_delete(prefix)
-    logger.debug("Cache INVALIDATE prefix=%s removed=%s", prefix, count)
+    logger.info("Cache INVALIDATE prefix=%s removed=%s", prefix, count)
     return count
 
 
