@@ -63,7 +63,7 @@ class AutoReviewService:
 
         if action is None:
             logger.info(
-                "AutoReview: sample_id=%s → PENDING_REVIEW (no auto-rule matched). gmv=%.2f post_rate=%s",
+                "AutoReview: sample_id=%s → PENDING_REVIEW (no auto-rule matched). gmv=%s post_rate=%s",
                 sample_id, gmv, post_rate,
             )
             return {"action": "PENDING_REVIEW", "reason": "No auto-rule matched — needs human review."}

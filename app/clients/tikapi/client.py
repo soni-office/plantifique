@@ -31,7 +31,7 @@ class TikApiClient:
                 "X-API-KEY": self.api_key,
             })
 
-    def _get(self, path: str, params: dict, read_timeout: int = _TIMEOUT_DEFAULT) -> Optional[dict]:
+    def _get(self, path: str, params: dict, timeout: int = _TIMEOUT_DEFAULT) -> Optional[dict]:
         """
         Make a GET request to TikAPI.
 
@@ -48,7 +48,7 @@ class TikApiClient:
         url = f"{self.base_url}{path}"
 
         for attempt in (1, 2):
-            current_read = read_timeout if attempt == 1 else read_timeout + 5
+            current_read = timeout if attempt == 1 else timeout + 5
             try:
                 resp = self.session.get(
                     url,

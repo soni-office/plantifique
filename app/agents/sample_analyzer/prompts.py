@@ -226,12 +226,16 @@ Tier: {tier}
 2. **Video Quality:** Use the `quality` and `is_hd` fields to evaluate the technical standards of the production. We seek creators with clear, high-definition visuals.
 3. **Comment Vibe:** Review the `top_comments`. Do they indicate high audience interest and engagement aligned with the product category?
 4. **Video Stats:** Look at plays, likes, and shares to confirm their visual content actively reaches and engages users.
-5. **Niche Alignment:** Does the creator's visual style and daily content focus directly fit the `{product_title}` and description ({product_description})?
+5. **Niche Alignment:** Does the creator's visual style and content fall within the same or an adjacent category to the product (e.g., skincare, beauty, personal care)? 
+   - Exact matches (e.g., foot care for foot mask) are ideal.
+   - Closely related niches (e.g., skincare, makeup, beauty routines) should still be considered a strong fit if audience engagement and content style indicate potential for product adoption.
 
-
+IMPORTANT:
+- Do not reject creators solely because the exact product use case (e.g., foot care) is not shown.
+- If the creator operates within a relevant broader niche (e.g., skincare, beauty, self-care), consider them a valid aesthetic fit.
 
 Return ONLY a valid JSON with:
 "aesthetic_score": (int 0-100),
-"reasoning": (string, 2-3 detailed sentences explaining the aesthetic fit),
+"reasoning": (string, 2-3 detailed sentences explaining the aesthetic fit, explicitly stating whether the match is direct or based on adjacent category relevance)
 "top_3_video_urls": (list of up to 3 video `web_url` links from the provided JSON that are the absolute best match for this product. Use an empty list [] if none fit or if there are no videos).
 """
