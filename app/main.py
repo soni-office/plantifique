@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api import sample_request, creator, auth_session, agent, product, internal, org, testing, tier_config
+from app.api import sample_request, creator, auth_session, agent, product, internal, org, testing, tier_config, metadata
 from app.api.auth_tiktokshop import router as tiktok_auth_router
 
 # This configures all your child loggers at once
@@ -61,3 +61,4 @@ app.include_router(internal.router)
 app.include_router(org.router)
 app.include_router(tier_config.router)
 app.include_router(testing.router)
+app.include_router(metadata.router)

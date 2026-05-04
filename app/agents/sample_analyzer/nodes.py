@@ -634,7 +634,7 @@ def decision_node(state: SREvaluationState) -> dict:
         }
 
     a_score = state.get("aesthetic_score", 0)
-    avg_score = (c_score + a_score) / 2
+    
 
     a_reasoning = state.get("aesthetic_reasoning", "No reasoning provided.")
     top_videos = state.get("top_3_video_urls", [])
@@ -645,6 +645,7 @@ def decision_node(state: SREvaluationState) -> dict:
         f"aesthetic_score: {a_score}/100\n\n"
     )
 
+    v_score = 0
     if state.get("visual_score") is not None:
         v_score = state.get("visual_score")
         combined_reasoning += f"visual_score (Phase 4): {v_score}/100\n\n"
@@ -653,6 +654,7 @@ def decision_node(state: SREvaluationState) -> dict:
         f"Top Evidence Videos:\n{video_links_str}\n\n"
         f"Product Category: {tier}"
     )
+    avg_score = (c_score + a_score + v_score) / 3
 
     if avg_score >= threshold:
         return {

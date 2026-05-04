@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.clients.tikapi.client import tikapi_client
+from app.cache import cache, keys, ttl
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,11 @@ class TikApiService:
     # ---------- PUBLIC ENTRY POINT ----------
 
     def enrich_creator(self, username: str, product_title: Optional[str] = None) -> list[dict]:
-        user_info = self.client.get_user_by_username(username)
+        user_info = cache.cache_or_fetch(
+            keys.tikapi_creator_profile(username),
+            ttl.TIKAPI_CREATOR_PROFILE,
+            lambda: self.client.get_user_by_username(username),
+        )
         if not user_info:
             return []
 
@@ -67,18 +72,27 @@ class TikApiService:
     def _get_relevant_videos(self, sec_uid: str, username: str, product_title: Optional[str]):
         # TODO: Later we can experiment with using a mix of top videos and playlist videos to see if it improves the reasoning.
         if product_title:
-            playlists = self.client.get_user_playlists(sec_uid)
+            playlists = cache.cache_or_fetch(
+                keys.tikapi_creator_playlists(sec_uid),
+                ttl.TIKAPI_CREATOR_PLAYLISTS,
+                lambda: self.client.get_user_playlists(sec_uid),
+            )
             mix_id = self._select_playlist(playlists, product_title)
 
             if mix_id:
                 logger.info("[TikAPI] 1s gap — after playlist selection, before fetching playlist videos")
                 time.sleep(1)
+                # Playlist videos not cached — content changes frequently
                 raw = self.client.get_playlist_videos(mix_id, _VIDEO_LIMIT)
                 return [self._sanitise_video(v, username) for v in raw]
 
         # fallback
-        raw = self.client.get_top_videos(sec_uid, _VIDEO_LIMIT)
-        return [self._sanitise_video(v, username) for v in raw]
+        raw = cache.cache_or_fetch(
+            keys.tikapi_creator_top_videos(sec_uid),
+            ttl.TIKAPI_CREATOR_TOP_VIDEOS,
+            lambda: self.client.get_top_videos(sec_uid, _VIDEO_LIMIT),
+        )
+        return [self._sanitise_video(v, username) for v in (raw or [])]
 
     def _select_playlist(self, playlists: list[dict], product_title: str) -> Optional[str]:
         if not playlists:
@@ -107,10 +121,14 @@ Select the mix_id of the playlist that conceptually matches this product categor
             return None
 
     def _get_clean_comments(self, video_id: str) -> list[str]:
-        raw = self.client.get_video_comments(video_id, _COMMENT_LIMIT)
+        raw = cache.cache_or_fetch(
+            keys.tikapi_videos_comments(video_id),
+            ttl.TIKAPI_VIDEOS_COMMENTS,
+            lambda: self.client.get_video_comments(video_id, _COMMENT_LIMIT),
+        )
         return [
             (c.get("text") or "")[:_COMMENT_MAX_CHARS].strip()
-            for c in raw if c.get("text")
+            for c in (raw or []) if c.get("text")
         ]
 
     def _sanitise_video(self, item: dict, username: str) -> dict:

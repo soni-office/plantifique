@@ -12,8 +12,8 @@ _BASE_URL = "https://api.tikapi.io"
 
 # Per-endpoint read timeouts (seconds)
 _TIMEOUT_DEFAULT  = 18   # user lookups, comments
-_TIMEOUT_PLAYLIST = 18   # playlist metadata + items
-_TIMEOUT_VIDEO    = 22   # video post listings (heaviest responses)
+_TIMEOUT_PLAYLIST = 23   # playlist metadata + items
+_TIMEOUT_VIDEO    = 23   # video post listings (heaviest responses)
 
 
 class TikApiClient:
@@ -35,8 +35,11 @@ class TikApiClient:
         """
         Make a GET request to TikAPI.
 
-        On ReadTimeout only: retries once with timeout + 5 s.
-        All other errors are logged and returned as None immediately (no retry).
+        Retry policy:
+          - ReadTimeout: retry once with read_timeout + 5 s
+          - 502 Bad Gateway: retry once after 2 s
+          - ConnectionError: retry once after 3 s (transient DNS / network blip)
+          - 403 Forbidden / other non-2xx: log body, return None immediately (no retry)
         """
         if not self.api_key:
             logger.warning("[TikAPI] API key missing - skipping request.")
@@ -45,19 +48,28 @@ class TikApiClient:
         url = f"{self.base_url}{path}"
 
         for attempt in (1, 2):
-            current_timeout = timeout if attempt == 1 else timeout + 5
+            current_read = timeout if attempt == 1 else timeout + 5
             try:
                 resp = self.session.get(
                     url,
                     params=params,
-                    timeout=current_timeout,
+                    # timeout=(4, current_read),  # (connect_timeout, read_timeout)
+                    timeout=current_read,  # (connect_timeout, read_timeout)
                 )
 
-                # 502 Bad Gateway: transient TikAPI server hiccup — retry once after 2s
+                # 403 Forbidden: likely rate-limited by TikAPI — log body for diagnosis
+                if resp.status_code == 403:
+                    logger.warning(
+                        "[TikAPI] GET %s returned 403 Forbidden — body: %s",
+                        path, resp.text[:400],
+                    )
+                    return None
+
+                # 502 Bad Gateway: transient TikAPI server hiccup — retry once after 2 s
                 if resp.status_code == 502:
                     if attempt == 1:
                         logger.warning(
-                            "[TikAPI] GET %s returned 502 Bad Gateway — retrying once in 3s",
+                            "[TikAPI] GET %s returned 502 Bad Gateway — retrying once in 2s",
                             path,
                         )
                         time.sleep(2)
@@ -65,25 +77,41 @@ class TikApiClient:
                     logger.error("[TikAPI] GET %s returned 502 again on retry — giving up", path)
                     return None
 
-                resp.raise_for_status()
+                # Any other non-2xx: log status + body and bail
+                if not resp.ok:
+                    logger.error(
+                        "[TikAPI] GET %s returned %s — body: %s",
+                        path, resp.status_code, resp.text[:400],
+                    )
+                    return None
+
                 return resp.json()
 
             except ReadTimeout:
                 if attempt == 1:
                     logger.warning(
                         "[TikAPI] GET %s read timed out after %ds — retrying once with %ds",
-                        path, current_timeout, current_timeout + 5,
+                        path, current_read, current_read + 5,
                     )
                     continue
-                # Second attempt also timed out
                 logger.error(
                     "[TikAPI] GET %s timed out on retry (%ds) — giving up",
-                    path, current_timeout,
+                    path, current_read,
                 )
                 return None
 
+            except requests.ConnectionError as e:
+                if attempt == 1:
+                    logger.warning(
+                        "[TikAPI] GET %s connection error — retrying once in 3s: %s",
+                        path, e,
+                    )
+                    time.sleep(3)
+                    continue
+                logger.error("[TikAPI] GET %s connection error on retry — giving up: %s", path, e)
+                return None
+
             except requests.RequestException as e:
-                # Non-timeout errors: log and bail immediately, no retry
                 logger.error("[TikAPI] GET %s failed: %s", path, e)
                 return None
 

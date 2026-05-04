@@ -70,11 +70,31 @@ def sample_list_prefix(org_id: str) -> str:
     return f"samples:list:{org_id}:"
 
 
-def sample_item(org_id: str, sample_id: str) -> str:
-    return f"samples:item:{org_id}:{sample_id}"
+def sample_list_filtered(
+    org_id: str, filter_field: str, filter_value: str, page_size: int, cursor: str | None
+) -> str:
+    """Filtered list page — shares the org prefix so sync/evaluate invalidations wipe it too."""
+    cur = cursor or "first"
+    return f"samples:list:{org_id}:{filter_field}:{filter_value}:{page_size}:{cur}"
+
 
 
 # ------- ORG INFO (Firestore) ────────────────────────────────────────────
 def orgs_list() -> str:
     # works only for super_admin listing orgs, not org-scoped queries
     return "orgs:list"
+
+
+# ------- TIKAPI RESPONSES ---------------------------------------
+
+def tikapi_creator_profile(creator_username: str) -> str:
+    return f"tikapi:creator_profile:{creator_username}"
+
+def tikapi_creator_top_videos(sec_uid: str) -> str:
+    return f"tikapi:creator_top_videos:{sec_uid}"
+
+def tikapi_creator_playlists(sec_uid: str) -> str:
+    return f"tikapi:creator_playlists:{sec_uid}"
+
+def tikapi_videos_comments(video_id: str) -> str:
+    return f"tikapi:video_comments:{video_id}"

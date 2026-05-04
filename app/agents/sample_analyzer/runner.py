@@ -60,7 +60,7 @@ def run_sr_agent(
         "visual_score": result.get("visual_score"),
         "visual_reasoning": result.get("visual_reasoning"),
         "compatibility_status": result.get("compatibility_status"),
-        "rich_creator_detail": result.get("rich_creator_detail"),
+        "rich_creator_detail": result.get("rich_creator_detail") or result.get("rich_creator_data"),
         "rich_product_detail": result.get("rich_product_detail"),
         "final_decision": result.get("final_decision"),
         "decision_reason": combined_reasoning,

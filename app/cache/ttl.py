@@ -12,7 +12,6 @@ Defaults balance freshness vs API quota:
   Shop products    10 min  — picker list; no need to be live on every open
   Tier config       5 min  — admin changes propagate within minutes
   Sample list       5 min  — between syncs, list is stable; sync invalidates early
-  Sample item      10 min  — analysis/review state; explicit invalidation on updates
 """
 import os
 
@@ -36,8 +35,12 @@ TIER_CONFIG    = _ttl("CACHE_TTL_TIER_CONFIG",     300)  # 5 min
 ORG_LIST       = _ttl("CACHE_TTL_ORG_LIST",        3600)  # 1 hr
 
 # ── Sample requests (Firestore) ───────────────────────────────────────────
-# Both are also invalidated explicitly:
-#   - Sync → invalidates entire org's sample list
-#   - Evaluate / review-status / feedback → invalidates the specific item
+# Invalidated explicitly: sync, evaluate, review-status, and feedback all
+# call invalidate_prefix(sample_list_prefix(org_id)) after mutating state.
 SAMPLE_LIST    = _ttl("CACHE_TTL_SAMPLE_LIST",     300)  # 5 min
-SAMPLE_ITEM    = _ttl("CACHE_TTL_SAMPLE_ITEM",     600)  # 10 min
+
+# --- TIKAPI -------------
+TIKAPI_CREATOR_PROFILE = _ttl("CACHE_TTL_TIKAPI_CREATOR_PROFILE", 3600)  # 1 hour
+TIKAPI_CREATOR_TOP_VIDEOS = _ttl("CACHE_TTL_TIKAPI_CREATOR_TOP_VIDEOS", 2100)  # 35 min
+TIKAPI_CREATOR_PLAYLISTS = _ttl("CACHE_TTL_TIKAPI_CREATOR_PLAYLISTS", 2100)  # 35 min
+TIKAPI_VIDEOS_COMMENTS = _ttl("CACHE_TTL_TIKAPI_VIDEOS_COMMENTS", 2100)  # 35 min
