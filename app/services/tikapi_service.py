@@ -44,13 +44,13 @@ class TikApiService:
             lambda: self.client.get_user_by_username(username),
         )
         if not user_info:
-            return []
+            raise RuntimeError(f"TikAPI returned no user info for username '{username}'. This may be a network error or rate limit.")
 
         user = user_info.get("user") or user_info
         sec_uid = user.get("secUid") or user.get("id")
 
         if not sec_uid:
-            return []
+            raise RuntimeError(f"TikAPI returned user info for '{username}' but no secUid was found.")
 
         logger.info("[TikAPI] 1s gap — after profile lookup, before video fetch")
         time.sleep(1)

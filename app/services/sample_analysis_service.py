@@ -165,17 +165,23 @@ class SampleAnalysisService:
         #  Clear Redis list cache immediately so a page refresh shows QUEUED right away
         cache.invalidate_prefix(keys.sample_list_prefix(org_id))
 
-        result = run_sr_agent(
-            sample_request_id=sample_id,
-            access_token=access_token,
-            shop_cipher=cipher,
-            threshold=threshold,
-        )
-        self.repo.save_analysis_result(
-            sample_id=sample_id,
-            org_id=org_id,
-            result=result,
-        )
+        try:
+            result = run_sr_agent(
+                sample_request_id=sample_id,
+                access_token=access_token,
+                shop_cipher=cipher,
+                threshold=threshold,
+            )
+            self.repo.save_analysis_result(
+                sample_id=sample_id,
+                org_id=org_id,
+                result=result,
+            )
+        except Exception as e:
+            logger.error("Evaluation failed for sample_id=%s: %s", sample_id, e)
+            self.repo.mark_failed(sample_id=sample_id, error=str(e), retry_count=1)
+            cache.invalidate_prefix(keys.sample_list_prefix(org_id))
+            raise RuntimeError(f"Analysis failed: {str(e)}")
 
         # Auto-review: apply rule-based approve/reject immediately after analysis
         from app.services.auto_review_service import AutoReviewService
