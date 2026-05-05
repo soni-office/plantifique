@@ -107,12 +107,12 @@ class AutoReviewService:
         Returns (action, reason) where action is "APPROVE", "REJECT", or None.
         None means leave as PENDING_REVIEW for a human.
         """
-        # Rule 1 — hard GMV floor
-        if gmv is not None and gmv < GMV_HARD_REJECT:
+        # Rule 1 — hard GMV floor (skip if exactly 0, leave for client)
+        if gmv is not None and 0 < gmv < GMV_HARD_REJECT:
             return "REJECT", f"GMV ${gmv:.0f} is below the $300 minimum threshold."
 
-        # Rule 2 — low post rate + low GMV combined
-        if post_rate is not None and post_rate < POST_RATE_LOW and gmv is not None and gmv < GMV_LOW_THRESHOLD:
+        # Rule 2 — low post rate + low GMV combined (skip if exactly 0, leave for client)
+        if post_rate is not None and post_rate < POST_RATE_LOW and gmv is not None and 0 < gmv < GMV_LOW_THRESHOLD:
             display_rate = post_rate / 100
             return (
                 "REJECT",

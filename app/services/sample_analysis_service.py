@@ -121,6 +121,30 @@ class SampleAnalysisService:
         # Backward pass: mark anything no longer PENDING on TikTok
         db_pending_ids = self.repo.get_all_tiktok_pending_ids(org_id)
         stale_ids = db_pending_ids - tiktok_ids_seen
+        
+        # Pull recent APPROVED/REJECTED to accurately update internal review_status
+        if stale_ids:
+            for fetch_status in ["APPROVED", "REJECTED"]:
+                try:
+                    res = TikTokSampleClient.search(
+                        access_token=access_token,
+                        shop_cipher=cipher,
+                        page_size=50,
+                        status=fetch_status,
+                    )
+                    if res.get("code") == 0:
+                        batch_proc = res.get("data", {}).get("sample_applications") or []
+                        for app in batch_proc:
+                            app_id = app["id"]
+                            if app_id in stale_ids:
+                                self.repo.set_review_status(
+                                    sample_id=app_id, 
+                                    status=fetch_status, 
+                                    reason=f"Manually synced from TikTok Shop ({fetch_status})"
+                                )
+                except Exception as e:
+                    logger.warning("Failed to fetch %s samples during sync: %s", fetch_status, e)
+
         processed_count = self.repo.mark_processed_on_shop(stale_ids, ttl_days=1)
 
         # Invalidate entire sample list cache for this org
@@ -147,15 +171,30 @@ class SampleAnalysisService:
         from app.agents.sample_analyzer.runner import run_sr_agent
 
         existing = self.repo.get(sample_id)
-        if existing and existing.get("analysis_status") in ("QUEUED", "COMPLETED"):
-            logger.warning(
-                "sample_id=%s is already %s — skipping duplicate analysis",
-                sample_id, existing.get("analysis_status"),
-            )
-            return {
-                "status": "skipped",
-                "message": f"Analysis is already {existing.get('analysis_status').lower()}. Cannot run again.",
-            }
+        if existing:
+            # Block duplicate analysis
+            if existing.get("analysis_status") in ("QUEUED", "COMPLETED"):
+                logger.warning(
+                    "sample_id=%s is already %s — skipping duplicate analysis",
+                    sample_id, existing.get("analysis_status"),
+                )
+                return {
+                    "status": "skipped",
+                    "message": f"Analysis is already {existing.get('analysis_status').lower()}. Cannot run again.",
+                }
+
+            # Block analysis if already processed/decided
+            review_status = existing.get("review_status")
+            tiktok_status = existing.get("tiktok_status")
+            if tiktok_status == "PROCESSED_ON_SHOP" or review_status in ("APPROVED", "REJECTED"):
+                logger.warning(
+                    "sample_id=%s is already processed on shop (review_status=%s) — skipping analysis",
+                    sample_id, review_status,
+                )
+                return {
+                    "status": "skipped",
+                    "message": f"Sample is already processed (Status: {review_status}). Cannot analyze.",
+                }
 
         logger.info(
             "Evaluating sample_id=%s org=%s by=%s", sample_id, org_id, user_id
