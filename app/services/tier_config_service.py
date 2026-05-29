@@ -58,6 +58,24 @@ class TierConfigService:
         except Exception as exc:
             logger.warning("Could not resolve creator_open_id for %s: %s", username, exc)
 
+        if avatar_url and creator_open_id:
+            from app.core.config import settings
+            if settings.firebase_storage_bucket:
+                import httpx
+                from google.cloud import storage
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(avatar_url, timeout=10.0)
+                        if resp.status_code == 200:
+                            gcs_client = storage.Client(project=settings.gcp_project)
+                            bucket = gcs_client.bucket(settings.firebase_storage_bucket)
+                            blob = bucket.blob(f"tier_avatars/{creator_open_id}.webp")
+                            blob.upload_from_string(resp.content, content_type="image/webp")
+                            avatar_url = blob.public_url
+                            logger.info("Avatar uploaded to bucket for %s", username)
+                except Exception as exc:
+                    logger.warning("Could not upload avatar to bucket for %s: %s", username, exc)
+
         entry = self.repo.upsert_creator(
             org_id=org_id,
             username=username,
@@ -70,6 +88,21 @@ class TierConfigService:
         return entry
 
     def remove_creator(self, org_id: str, username: str) -> bool:
+        creator = next((c for c in self.repo.list_creators(org_id) if c.get("username") == username), None)
+        if creator and creator.get("creator_open_id"):
+            from app.core.config import settings
+            if settings.firebase_storage_bucket:
+                from google.cloud import storage
+                try:
+                    gcs_client = storage.Client(project=settings.gcp_project)
+                    bucket = gcs_client.bucket(settings.firebase_storage_bucket)
+                    blob = bucket.blob(f"tier_avatars/{creator['creator_open_id']}.webp")
+                    if blob.exists():
+                        blob.delete()
+                        logger.info("Deleted avatar from bucket for %s", username)
+                except Exception as exc:
+                    logger.warning("Failed to delete avatar from bucket for %s: %s", username, exc)
+
         return self.repo.remove_creator(org_id=org_id, username=username)
 
     # ── Products (Tier 3 / 4) ─────────────────────────────────────────────

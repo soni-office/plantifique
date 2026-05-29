@@ -331,8 +331,11 @@ def fetch_aesthetic_data_node(state: SREvaluationState) -> dict:
     try:
         recent_videos = tikapi_service.enrich_creator(username, product_title=product_title)
     except Exception as e:
-        logger.warning("[TikAPI] enrich_creator failed for username=%s: %s", username, e)
-        recent_videos = []
+        logger.error(
+            "[TikAPI] enrich_creator failed for username=%s: %s — marking SR as FAILED",
+            username, e,
+        )
+        raise  # propagate so _process_one marks this SR as FAILED in Firestore
     logger.info("[TikAPI] Got %d videos for username=%s", len(recent_videos), username)
     return {"recent_videos": recent_videos}
 
@@ -442,7 +445,7 @@ def commerce_evaluation_node(state: SREvaluationState) -> dict:
                 rich_creator_dict = data_obj.get("creator") or data_obj
                 logger.info("[Phase 2] Fetched rich TikTok affiliate creator profile for creator_id=%s", creator_open_id)
             else:
-                logger.warning("[Phase 2] Failed to fetch TikTok affiliate creator profile for creator_id=%s", creator_open_id)
+                logger.error("[Phase 2] Failed to fetch TikTok affiliate creator profile for creator_id=%s — proceeding with shallow data", creator_open_id)
 
         # 2. Fetch rich product detail (cached)
         if product_id:
@@ -455,7 +458,7 @@ def commerce_evaluation_node(state: SREvaluationState) -> dict:
                 rich_product_dict = res_p.get("data", {})
                 logger.info("[Phase 2] Fetched rich product detail for product_id=%s", product_id)
             else:
-                logger.warning("[Phase 2] Failed to fetch rich product detail for product_id=%s", product_id)
+                logger.error("[Phase 2] Failed to fetch rich product detail for product_id=%s — proceeding without rich product data", product_id)
         
     # --- RAG context retrieval (optional) ---
     rag_context_section = ""

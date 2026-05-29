@@ -102,6 +102,9 @@ class Settings:
     # Web API Key — used by the REST-based invite email sender.
     # Found in Firebase console → Project Settings → General → Web API Key.
     firebase_web_api_key: str = os.getenv('FIREBASE_WEB_API_KEY', '')
+    
+    # Firebase Storage Bucket 
+    firebase_storage_bucket: str = os.getenv('FIREBASE_STORAGE_BUCKET', '')
 
     # -------------------------------------------------------------------------
     # RAG
